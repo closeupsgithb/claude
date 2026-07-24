@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SeriesPoint } from "@/lib/metricool";
 
@@ -13,11 +13,11 @@ type Props = {
 };
 
 const WIDTH = 720;
-const HEIGHT = 220;
+const HEIGHT = 240;
 const PAD_LEFT = 48;
 const PAD_RIGHT = 16;
-const PAD_TOP = 16;
-const PAD_BOTTOM = 28;
+const PAD_TOP = 20;
+const PAD_BOTTOM = 30;
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
@@ -35,9 +35,14 @@ function formatDateFull(iso: string): string {
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)}, ${rest}`;
 }
 
+function seriesPath(points: { x: number; y: number }[]): string {
+  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+}
+
 export default function AreaChart({ title, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const gradId = useId();
 
   const allDates = useMemo(() => {
     const set = new Set<string>();
@@ -49,49 +54,37 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
   const esByDate = useMemo(() => new Map(esSeries.map((p) => [p.date, p.value])), [esSeries]);
   const ptByDate = useMemo(() => new Map(ptSeries.map((p) => [p.date, p.value])), [ptSeries]);
 
-  const { minT, maxT, maxStack } = useMemo(() => {
+  const { minT, maxT, maxV } = useMemo(() => {
     const times = allDates.map((d) => new Date(d).getTime());
-    const stacks = allDates.map((d) => (esByDate.get(d) ?? 0) + (ptByDate.get(d) ?? 0));
+    const values = [...esSeries, ...ptSeries].map((p) => p.value);
     return {
       minT: Math.min(...times),
       maxT: Math.max(...times),
-      maxStack: Math.max(1, ...stacks),
+      maxV: Math.max(1, ...values),
     };
-  }, [allDates, esByDate, ptByDate]);
+  }, [allDates, esSeries, ptSeries]);
 
   if (allDates.length === 0) {
-    return (
-      <div style={emptyStyle}>
-        {title} — sin datos en este periodo.
-      </div>
-    );
+    return <div style={emptyStyle}>{title} — sin datos en este periodo.</div>;
   }
 
+  const domainMax = maxV * 1.15;
   const xScale = (iso: string) => {
     const t = new Date(iso).getTime();
     if (maxT === minT) return PAD_LEFT;
     return PAD_LEFT + ((t - minT) / (maxT - minT)) * (WIDTH - PAD_LEFT - PAD_RIGHT);
   };
-  const domainMax = maxStack * 1.15;
   const yScale = (v: number) => HEIGHT - PAD_BOTTOM - (v / domainMax) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
-
-  const esTop = allDates.map((d) => esByDate.get(d) ?? 0);
-  const stackTop = allDates.map((d, i) => esTop[i] + (ptByDate.get(d) ?? 0));
-
   const baseline = HEIGHT - PAD_BOTTOM;
-  const esAreaPath =
-    allDates.map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(d).toFixed(1)} ${yScale(esTop[i]).toFixed(1)}`).join(" ") +
-    ` L ${xScale(allDates[allDates.length - 1]).toFixed(1)} ${baseline} L ${xScale(allDates[0]).toFixed(1)} ${baseline} Z`;
 
-  const ptAreaPath =
-    allDates.map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(d).toFixed(1)} ${yScale(stackTop[i]).toFixed(1)}`).join(" ") +
-    " " +
-    allDates
-      .slice()
-      .reverse()
-      .map((d, i) => `L ${xScale(d).toFixed(1)} ${yScale(esTop[allDates.length - 1 - i]).toFixed(1)}`)
-      .join(" ") +
-    " Z";
+  const esPoints = esSeries.map((p) => ({ x: xScale(p.date), y: yScale(p.value), date: p.date, value: p.value }));
+  const ptPoints = ptSeries.map((p) => ({ x: xScale(p.date), y: yScale(p.value), date: p.date, value: p.value }));
+
+  const esAreaPath = esPoints.length ? `${seriesPath(esPoints)} L ${esPoints[esPoints.length - 1].x} ${baseline} L ${esPoints[0].x} ${baseline} Z` : "";
+  const ptAreaPath = ptPoints.length ? `${seriesPath(ptPoints)} L ${ptPoints[ptPoints.length - 1].x} ${baseline} L ${ptPoints[0].x} ${baseline} Z` : "";
+
+  const esPeak = esSeries.length ? esSeries.reduce((a, b) => (b.value > a.value ? b : a)) : null;
+  const ptPeak = ptSeries.length ? ptSeries.reduce((a, b) => (b.value > a.value ? b : a)) : null;
 
   const gridValues = Array.from({ length: 5 }, (_, i) => (domainMax * i) / 4);
 
@@ -138,6 +131,17 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
           }}
           onMouseLeave={() => setHoverIdx(null)}
         >
+          <defs>
+            <linearGradient id={`${gradId}-es`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--series-es)" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="var(--series-es)" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id={`${gradId}-pt`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--series-pt)" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="var(--series-pt)" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
           {gridValues.map((v, i) => (
             <g key={i}>
               <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={yScale(v)} y2={yScale(v)} stroke="var(--gridline)" strokeWidth={1} />
@@ -147,21 +151,39 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
             </g>
           ))}
 
-          <path d={esAreaPath} fill="var(--series-es)" opacity={0.85} stroke="none" />
-          <path d={ptAreaPath} fill="var(--series-pt)" opacity={0.85} stroke="none" />
+          {/* Independent (non-stacked) fills so each country's own shape and magnitude stay readable */}
+          <path d={esAreaPath} fill={`url(#${gradId}-es)`} stroke="none" />
+          <path d={ptAreaPath} fill={`url(#${gradId}-pt)`} stroke="none" />
+          <path d={seriesPath(esPoints)} fill="none" stroke="var(--series-es)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={seriesPath(ptPoints)} fill="none" stroke="var(--series-pt)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
 
           <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={baseline} y2={baseline} stroke="var(--baseline)" strokeWidth={1} />
 
+          {esPeak && esPeak.value > 0 && (
+            <g>
+              <circle cx={xScale(esPeak.date)} cy={yScale(esPeak.value)} r={3.5} fill="var(--surface-1)" stroke="var(--series-es)" strokeWidth={2} />
+              <text x={xScale(esPeak.date)} y={yScale(esPeak.value) - 8} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--series-es)">
+                pico {formatNumber(esPeak.value)}
+              </text>
+            </g>
+          )}
+          {ptPeak && ptPeak.value > 0 && ptPeak.date !== esPeak?.date && (
+            <g>
+              <circle cx={xScale(ptPeak.date)} cy={yScale(ptPeak.value)} r={3.5} fill="var(--surface-1)" stroke="var(--series-pt)" strokeWidth={2} />
+              <text x={xScale(ptPeak.date)} y={yScale(ptPeak.value) - 8} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--series-pt)">
+                pico {formatNumber(ptPeak.value)}
+              </text>
+            </g>
+          )}
+
           {hoverDate && (
-            <line
-              x1={xScale(hoverDate)}
-              x2={xScale(hoverDate)}
-              y1={PAD_TOP}
-              y2={baseline}
-              stroke="var(--surface-1)"
-              strokeWidth={2}
-              strokeDasharray="3,3"
-            />
+            <line x1={xScale(hoverDate)} x2={xScale(hoverDate)} y1={PAD_TOP} y2={baseline} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="3,3" />
+          )}
+          {hoverDate && esByDate.has(hoverDate) && (
+            <circle cx={xScale(hoverDate)} cy={yScale(esByDate.get(hoverDate)!)} r={4} fill="var(--series-es)" stroke="var(--surface-1)" strokeWidth={1.5} />
+          )}
+          {hoverDate && ptByDate.has(hoverDate) && (
+            <circle cx={xScale(hoverDate)} cy={yScale(ptByDate.get(hoverDate)!)} r={4} fill="var(--series-pt)" stroke="var(--surface-1)" strokeWidth={1.5} />
           )}
 
           {xAxisTicks.map((idx) => {
@@ -171,13 +193,7 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
             return (
               <g key={idx}>
                 <line x1={xScale(d)} x2={xScale(d)} y1={baseline} y2={baseline + 4} stroke="var(--baseline)" strokeWidth={1} />
-                <text
-                  x={xScale(d)}
-                  y={HEIGHT - 8}
-                  fontSize={10}
-                  fill="var(--text-muted)"
-                  textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
-                >
+                <text x={xScale(d)} y={HEIGHT - 10} fontSize={10} fill="var(--text-muted)" textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}>
                   {formatDateShort(d)}
                 </text>
               </g>
@@ -201,8 +217,8 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
                 .map((d) => (
                   <tr key={d}>
                     <td style={tdStyle}>{formatDateShort(d)}</td>
-                    <td style={tdStyle}>{formatNumber(esByDate.get(d) ?? 0)}</td>
-                    <td style={tdStyle}>{formatNumber(ptByDate.get(d) ?? 0)}</td>
+                    <td style={tdStyle}>{esByDate.has(d) ? formatNumber(esByDate.get(d)!) : "–"}</td>
+                    <td style={tdStyle}>{ptByDate.has(d) ? formatNumber(ptByDate.get(d)!) : "–"}</td>
                   </tr>
                 ))}
             </tbody>
@@ -212,8 +228,8 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
 
       {hoverDate && !showTable && (
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-          {formatDateFull(hoverDate)} — {esLabel}: <strong>{formatNumber(esByDate.get(hoverDate) ?? 0)}</strong> · {ptLabel}:{" "}
-          <strong>{formatNumber(ptByDate.get(hoverDate) ?? 0)}</strong>
+          {formatDateFull(hoverDate)} — {esLabel}: <strong>{esByDate.has(hoverDate) ? formatNumber(esByDate.get(hoverDate)!) : "sin dato"}</strong> ·{" "}
+          {ptLabel}: <strong>{ptByDate.has(hoverDate) ? formatNumber(ptByDate.get(hoverDate)!) : "sin dato"}</strong>
         </div>
       )}
     </div>

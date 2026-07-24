@@ -148,6 +148,42 @@ function sum(series: SeriesPoint[]): number {
   return series.reduce((acc, p) => acc + p.value, 0);
 }
 
+export type PeriodSummary = {
+  followersGained: number;
+  reach: number;
+  interactions: number;
+  engagementRate: number;
+};
+
+// Lighter than fetchNetworkSnapshot — only the three timelines needed to
+// compare one period against the immediately preceding one of equal length.
+export async function fetchPeriodSummary(
+  network: NetworkKey,
+  blogId: number,
+  from: string,
+  to: string
+): Promise<PeriodSummary> {
+  const fields = METRIC_FIELD[network];
+
+  const [followersSeries, reachSeries, interactionsSeries] = await Promise.all([
+    fetchTimeline({ network, metric: fields.followers, from, to, blogId }),
+    fetchTimeline({ network, metric: fields.reach, from, to, blogId }),
+    fetchTimeline({ network, metric: fields.interactions, from, to, blogId }),
+  ]);
+
+  const followersEnd = followersSeries.at(-1)?.value ?? 0;
+  const followersStart = followersSeries[0]?.value ?? followersEnd;
+  const reach = sum(reachSeries);
+  const interactions = sum(interactionsSeries);
+
+  return {
+    followersGained: followersEnd - followersStart,
+    reach,
+    interactions,
+    engagementRate: reach > 0 ? (interactions / reach) * 100 : 0,
+  };
+}
+
 export async function fetchNetworkSnapshot(
   network: NetworkKey,
   blogId: number,

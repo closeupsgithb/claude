@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchNetworkSnapshot, fetchAdsBreakdown, fetchTopPosts, MissingCredentialsError, BRAND_ID } from "@/lib/metricool";
+import { fetchNetworkSnapshot, fetchPeriodSummary, fetchAdsBreakdown, fetchTopPosts, MissingCredentialsError, BRAND_ID } from "@/lib/metricool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -22,8 +22,27 @@ export async function GET(request: Request) {
   const fromIso = toMetricoolIso(from);
   const toIso = toMetricoolIso(to);
 
+  // Immediately preceding window of equal length, used for period-over-period
+  // comparison (e.g. last 30 days vs the 30 days before that).
+  const prevTo = from;
+  const prevFrom = new Date(from.getTime() - days * 24 * 60 * 60 * 1000);
+  const prevFromIso = toMetricoolIso(prevFrom);
+  const prevToIso = toMetricoolIso(prevTo);
+
   try {
-    const [esInstagram, esFacebook, ptInstagram, ptFacebook, ads, esPosts, ptPosts] = await Promise.all([
+    const [
+      esInstagram,
+      esFacebook,
+      ptInstagram,
+      ptFacebook,
+      ads,
+      esPosts,
+      ptPosts,
+      prevEsInstagram,
+      prevEsFacebook,
+      prevPtInstagram,
+      prevPtFacebook,
+    ] = await Promise.all([
       fetchNetworkSnapshot("instagram", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("instagram", BRANDS.pt.id, fromIso, toIso),
@@ -31,6 +50,10 @@ export async function GET(request: Request) {
       fetchAdsBreakdown(fromIso, toIso),
       fetchTopPosts("es", fromIso, toIso),
       fetchTopPosts("pt", fromIso, toIso),
+      fetchPeriodSummary("instagram", BRANDS.es.id, prevFromIso, prevToIso),
+      fetchPeriodSummary("facebook", BRANDS.es.id, prevFromIso, prevToIso),
+      fetchPeriodSummary("instagram", BRANDS.pt.id, prevFromIso, prevToIso),
+      fetchPeriodSummary("facebook", BRANDS.pt.id, prevFromIso, prevToIso),
     ]);
 
     return NextResponse.json({
@@ -42,6 +65,12 @@ export async function GET(request: Request) {
       pt: { label: BRANDS.pt.label, instagram: ptInstagram, facebook: ptFacebook },
       ads,
       posts: [...esPosts, ...ptPosts],
+      previousPeriod: {
+        from: prevFromIso,
+        to: prevToIso,
+        es: { instagram: prevEsInstagram, facebook: prevEsFacebook },
+        pt: { instagram: prevPtInstagram, facebook: prevPtFacebook },
+      },
     });
   } catch (err) {
     if (err instanceof MissingCredentialsError) {

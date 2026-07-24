@@ -2,14 +2,18 @@ import type { CSSProperties } from "react";
 
 type Props = {
   insights: string[];
+  periodLabel?: string;
 };
 
-export default function InsightBanner({ insights }: Props) {
+export default function InsightBanner({ insights, periodLabel }: Props) {
   if (insights.length === 0) return null;
 
   return (
     <div style={wrapStyle}>
-      <span style={eyebrowStyle}>Lo más relevante</span>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+        <span style={eyebrowStyle}>Lo más relevante</span>
+        {periodLabel && <span style={periodStyle}>{periodLabel}</span>}
+      </div>
       <ul style={listStyle}>
         {insights.map((text, i) => (
           <li key={i} style={itemStyle}>
@@ -36,6 +40,11 @@ const eyebrowStyle: CSSProperties = {
   letterSpacing: "0.06em",
   color: "var(--text-muted)",
   fontWeight: 700,
+};
+
+const periodStyle: CSSProperties = {
+  fontSize: 11,
+  color: "var(--text-muted)",
 };
 
 const listStyle: CSSProperties = {

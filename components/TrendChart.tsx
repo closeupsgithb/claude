@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SeriesPoint } from "@/lib/metricool";
 
@@ -38,6 +38,7 @@ function formatDateFull(iso: string): string {
 export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√±a", ptLabel = "Portugal" }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const gradId = useId();
 
   const allDates = useMemo(() => {
     const set = new Set<string>();
@@ -72,6 +73,12 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√
 
   const esPath = buildPath(esSeries);
   const ptPath = buildPath(ptSeries);
+
+  const baseline = HEIGHT - PAD_BOTTOM;
+  const buildAreaPath = (series: SeriesPoint[]) =>
+    series.length ? `${buildPath(series)} L ${xScale(series[series.length - 1].date).toFixed(1)} ${baseline} L ${xScale(series[0].date).toFixed(1)} ${baseline} Z` : "";
+  const esAreaPath = buildAreaPath(esSeries);
+  const ptAreaPath = buildAreaPath(ptSeries);
 
   const gridLines = 4;
   const gridValues = Array.from({ length: gridLines + 1 }, (_, i) => (maxV * 1.15 * i) / gridLines);
@@ -158,6 +165,17 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√
           }}
           onMouseLeave={() => setHoverIdx(null)}
         >
+          <defs>
+            <linearGradient id={`${gradId}-es`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--series-es)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--series-es)" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id={`${gradId}-pt`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--series-pt)" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="var(--series-pt)" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
           {gridValues.map((v, i) => (
             <g key={i}>
               <line
@@ -174,10 +192,13 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√
             </g>
           ))}
 
+          <path d={esAreaPath} fill={`url(#${gradId}-es)`} stroke="none" />
+          <path d={ptAreaPath} fill={`url(#${gradId}-pt)`} stroke="none" />
+
           <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={HEIGHT - PAD_BOTTOM} y2={HEIGHT - PAD_BOTTOM} stroke="var(--baseline)" strokeWidth={1} />
 
-          <path d={esPath} fill="none" stroke="var(--series-es)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-          <path d={ptPath} fill="none" stroke="var(--series-pt)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={esPath} fill="none" stroke="var(--series-es)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={ptPath} fill="none" stroke="var(--series-pt)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
 
           {hoverDate && (
             <line

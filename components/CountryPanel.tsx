@@ -1,10 +1,12 @@
-import type { NetworkSnapshot } from "@/lib/metricool";
+import type { CSSProperties } from "react";
+import type { NetworkSnapshot, PeriodSummary } from "@/lib/metricool";
 
 type Props = {
   countryLabel: string;
   colorVar: "--series-es" | "--series-pt";
   data: NetworkSnapshot;
   reachLabel: string;
+  previous?: PeriodSummary;
 };
 
 function formatNumber(n: number): string {
@@ -20,7 +22,34 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function CountryPanel({ countryLabel, colorVar, data, reachLabel }: Props) {
+function ChangeChip({ label, current, previous, unit }: { label: string; current: number; previous: number; unit: "pct" | "pp" }) {
+  let display: string;
+  let direction: "up" | "down" | "flat";
+
+  if (unit === "pp") {
+    const diff = current - previous;
+    direction = diff > 0.2 ? "up" : diff < -0.2 ? "down" : "flat";
+    display = `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}pp`;
+  } else {
+    const pct = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : current > 0 ? 100 : 0;
+    direction = pct > 1 ? "up" : pct < -1 ? "down" : "flat";
+    display = `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`;
+  }
+
+  const color = direction === "up" ? "var(--success)" : direction === "down" ? "var(--decline)" : "var(--text-muted)";
+  const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "•";
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5 }}>
+      <span style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ color, fontWeight: 700 }}>
+        {arrow} {display}
+      </span>
+    </span>
+  );
+}
+
+export default function CountryPanel({ countryLabel, colorVar, data, reachLabel, previous }: Props) {
   const engagementRate = data.reach > 0 ? (data.interactions / data.reach) * 100 : 0;
   const deltaPositive = data.followersDelta > 0;
 
@@ -55,6 +84,35 @@ export default function CountryPanel({ countryLabel, colorVar, data, reachLabel 
         <Metric label="Publicaciones" value={formatNumber(data.posts)} />
         <Metric label={data.secondaryLabel} value={formatNumber(data.secondary)} />
       </div>
+
+      {previous && (
+        <div style={comparisonRowStyle}>
+          <span style={comparisonEyebrowStyle}>vs. periodo anterior</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
+            <ChangeChip label="Seguidores" current={data.followersDelta} previous={previous.followersGained} unit="pct" />
+            <ChangeChip label={reachLabel} current={data.reach} previous={previous.reach} unit="pct" />
+            <ChangeChip label="Interacciones" current={data.interactions} previous={previous.interactions} unit="pct" />
+            <ChangeChip label="Tasa interacción" current={engagementRate} previous={previous.engagementRate} unit="pp" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const comparisonRowStyle: CSSProperties = {
+  marginTop: 14,
+  paddingTop: 12,
+  borderTop: "1px dashed var(--border)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const comparisonEyebrowStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--text-muted)",
+};

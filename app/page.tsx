@@ -10,15 +10,23 @@ import BarChart from "@/components/BarChart";
 import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import Logo from "@/components/Logo";
-import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, SeriesPoint } from "@/lib/metricool";
+import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, SeriesPoint, PeriodSummary } from "@/lib/metricool";
 
 type ApiResponse = {
   generatedAt: string;
+  from: string;
+  to: string;
   days: number;
   es: { label: string; instagram: NetworkSnapshot; facebook: NetworkSnapshot };
   pt: { label: string; instagram: NetworkSnapshot; facebook: NetworkSnapshot };
   ads: AdsBreakdownType;
   posts: ContentItem[];
+  previousPeriod: {
+    from: string;
+    to: string;
+    es: { instagram: PeriodSummary; facebook: PeriodSummary };
+    pt: { instagram: PeriodSummary; facebook: PeriodSummary };
+  };
 };
 
 type ApiError = { error: "MISSING_CREDENTIALS" | "UPSTREAM_ERROR"; detail?: string };
@@ -29,6 +37,11 @@ const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
+}
+
+function formatPeriodRange(from: string, to: string, days: number): string {
+  const fmt = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" });
+  return `Últimos ${days} días · ${fmt.format(new Date(from))} – ${fmt.format(new Date(to))}`;
 }
 
 function engagementRateSeries(reach: SeriesPoint[], interactions: SeriesPoint[]): SeriesPoint[] {
@@ -262,7 +275,7 @@ export default function Page() {
 
       {data && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <InsightBanner insights={insights} />
+          <InsightBanner insights={insights} periodLabel={formatPeriodRange(data.from, data.to, data.days)} />
 
           <div>
             <SectionLabel>{`Total Iberia · ${platform === "instagram" ? "Instagram" : "Facebook"}`}</SectionLabel>
@@ -287,8 +300,20 @@ export default function Page() {
           <div>
             <SectionLabel>España frente a Portugal</SectionLabel>
             <section style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-              <CountryPanel countryLabel="España" colorVar="--series-es" data={data.es[platform]} reachLabel={reachLabel} />
-              <CountryPanel countryLabel="Portugal" colorVar="--series-pt" data={data.pt[platform]} reachLabel={reachLabel} />
+              <CountryPanel
+                countryLabel="España"
+                colorVar="--series-es"
+                data={data.es[platform]}
+                reachLabel={reachLabel}
+                previous={data.previousPeriod.es[platform]}
+              />
+              <CountryPanel
+                countryLabel="Portugal"
+                colorVar="--series-pt"
+                data={data.pt[platform]}
+                reachLabel={reachLabel}
+                previous={data.previousPeriod.pt[platform]}
+              />
             </section>
           </div>
 
