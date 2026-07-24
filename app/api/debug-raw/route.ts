@@ -25,17 +25,17 @@ export async function GET(request: Request) {
   const toIso = to.toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const blogId = searchParams.get("blogId") ?? "5991450";
 
-  const [igPosts, igReels, fbPosts, fbAdsCampaigns] = await Promise.all([
-    metricoolGet("/v2/analytics/posts/instagram", { from: fromIso, to: toIso, blogId }),
-    metricoolGet("/v2/analytics/reels/instagram", { from: fromIso, to: toIso, blogId }),
-    metricoolGet("/v2/analytics/posts/facebook", { from: fromIso, to: toIso, blogId }),
-    metricoolGet("/v2/analytics/campaigns/facebookads", { from: fromIso, to: toIso, blogId }),
+  const [fbReels, adsEndpointA, adsEndpointB, adsEndpointC] = await Promise.all([
+    metricoolGet("/v2/analytics/reels/facebook", { from: fromIso, to: toIso, blogId }),
+    metricoolGet("/v2/analytics/ads/facebookads", { from: fromIso, to: toIso, blogId }),
+    metricoolGet("/v2/analytics/campaigns/ads/facebookads", { from: fromIso, to: toIso, blogId }),
+    metricoolGet("/v2/analytics/promotedPosts/facebookads", { from: fromIso, to: toIso, blogId }),
   ]);
 
   return NextResponse.json({
-    igPostSample: igPosts?.data?.slice(0, 2) ?? igPosts,
-    igReelSample: igReels?.data?.slice(0, 2) ?? igReels,
-    fbPostSample: fbPosts?.data?.slice(0, 2) ?? fbPosts,
-    adsCampaignSample: fbAdsCampaigns?.data?.slice(0, 3) ?? fbAdsCampaigns,
+    fbReelSample: fbReels?.data?.slice(0, 2) ?? fbReels,
+    adsEndpointA_sample: Array.isArray(adsEndpointA?.data) ? adsEndpointA.data.slice(0, 3) : adsEndpointA,
+    adsEndpointB_sample: Array.isArray(adsEndpointB?.data) ? adsEndpointB.data.slice(0, 3) : adsEndpointB,
+    adsEndpointC_sample: Array.isArray(adsEndpointC?.data) ? adsEndpointC.data.slice(0, 3) : adsEndpointC,
   });
 }
