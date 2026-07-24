@@ -102,6 +102,7 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "EspaÃ
         border: "1px solid var(--border)",
         borderRadius: 12,
         padding: "16px 16px 12px",
+        boxShadow: "var(--card-shadow)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>

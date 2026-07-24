@@ -10,9 +10,11 @@
   --border: rgba(11, 11, 11, 0.1);
   --success: #006300;
 
-  /* categorical slots */
-  --series-es: #2a78d6; /* blue */
-  --series-pt: #eb6834; /* orange */
+  /* categorical slots — Shimano brand blue (España) / Shimano brand green (Portugal), validated with dataviz palette checker */
+  --series-es: #0098d8;
+  --series-pt: #7dc242;
+  --series-other: #898781;
+  --card-shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 4px 12px rgba(11, 11, 11, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,8 +30,10 @@
     --border: rgba(255, 255, 255, 0.1);
     --success: #0ca30c;
 
-    --series-es: #3987e5;
-    --series-pt: #d95926;
+    --series-es: #1b8fc4;
+    --series-pt: #5c9c34;
+    --series-other: #898781;
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
   }
 }
 
@@ -45,8 +49,10 @@
   --border: rgba(255, 255, 255, 0.1);
   --success: #0ca30c;
 
-  --series-es: #3987e5;
-  --series-pt: #d95926;
+  --series-es: #1b8fc4;
+  --series-pt: #5c9c34;
+  --series-other: #898781;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 * {

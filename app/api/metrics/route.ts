@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { fetchNetworkSnapshot, MissingCredentialsError } from "@/lib/metricool";
+import { fetchNetworkSnapshot, fetchAdsBreakdown, fetchTopPosts, MissingCredentialsError, BRAND_ID } from "@/lib/metricool";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const BRANDS = {
-  es: { id: 5991450, label: "España" },
-  pt: { id: 5991465, label: "Portugal" },
+  es: { id: BRAND_ID.es, label: "España" },
+  pt: { id: BRAND_ID.pt, label: "Portugal" },
 } as const;
 
 function toMetricoolIso(date: Date): string {
@@ -22,11 +23,14 @@ export async function GET(request: Request) {
   const toIso = toMetricoolIso(to);
 
   try {
-    const [esInstagram, esFacebook, ptInstagram, ptFacebook] = await Promise.all([
+    const [esInstagram, esFacebook, ptInstagram, ptFacebook, ads, esPosts, ptPosts] = await Promise.all([
       fetchNetworkSnapshot("instagram", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("instagram", BRANDS.pt.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.pt.id, fromIso, toIso),
+      fetchAdsBreakdown(fromIso, toIso),
+      fetchTopPosts("es", fromIso, toIso),
+      fetchTopPosts("pt", fromIso, toIso),
     ]);
 
     return NextResponse.json({
@@ -36,6 +40,8 @@ export async function GET(request: Request) {
       days,
       es: { label: BRANDS.es.label, instagram: esInstagram, facebook: esFacebook },
       pt: { label: BRANDS.pt.label, instagram: ptInstagram, facebook: ptFacebook },
+      ads,
+      posts: [...esPosts, ...ptPosts],
     });
   } catch (err) {
     if (err instanceof MissingCredentialsError) {
