@@ -102,7 +102,8 @@ export default function TopContent({ items }: Props) {
         {sorted.map((item, i) => {
           const metricValue = item[sortKey];
           const hasValue = metricValue !== null;
-          const pct = hasValue ? Math.max(4, (metricValue! / topValue) * 100) : 0;
+          const pctOfLeader = hasValue ? Math.round((metricValue! / topValue) * 100) : 0;
+          const pct = hasValue ? Math.max(4, pctOfLeader) : 0;
           const metricLabel = !hasValue ? "No disponible" : sortKey === "engagementRate" ? `${metricValue!.toFixed(1)}%` : formatNumber(metricValue!);
           const typeStyle = TYPE_STYLE[item.type];
           const countryColorVar = item.country === "es" ? "--series-es" : "--series-pt";
@@ -140,6 +141,7 @@ export default function TopContent({ items }: Props) {
                     }}
                   />
                 </div>
+                <div style={progressCaptionStyle}>{hasValue ? (i === 0 ? "Líder del Top en esta métrica" : `${pctOfLeader}% del líder del Top`) : ""}</div>
               </div>
             </a>
           );
@@ -293,4 +295,10 @@ const progressTrackStyle: CSSProperties = {
 const progressFillStyle: CSSProperties = {
   height: "100%",
   borderRadius: 2,
+};
+
+const progressCaptionStyle: CSSProperties = {
+  fontSize: 10,
+  color: "var(--text-muted)",
+  marginTop: 4,
 };

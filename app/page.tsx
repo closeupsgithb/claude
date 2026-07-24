@@ -6,6 +6,7 @@ import CountryPanel from "@/components/CountryPanel";
 import AdsBreakdown from "@/components/AdsBreakdown";
 import TrendChart from "@/components/TrendChart";
 import AreaChart from "@/components/AreaChart";
+import FollowersChart from "@/components/FollowersChart";
 import BarChart from "@/components/BarChart";
 import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
@@ -86,17 +87,16 @@ function buildCsv(data: ApiResponse, platform: "instagram" | "facebook", reachLa
   return rows.map((r) => r.join(";")).join("\n");
 }
 
-type InsightCandidate = { text: string; weight: number; negative: boolean };
+type InsightCandidate = { text: string; weight: number };
 
 function pctChange(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : current < 0 ? -100 : 0;
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
-function formatShortDate(iso: string): string {
-  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" }).format(new Date(iso));
-}
-
+// Surfaces only positive, notable signals from the period — growth, records,
+// standout formats — each with the comparison behind it so the number isn't
+// just asserted. Weak or declining metrics are simply not candidates here.
 function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "facebook"): InsightCandidate[] {
   const platformLabel = platform === "instagram" ? "Instagram" : "Facebook";
   const candidates: InsightCandidate[] = [];
@@ -106,56 +106,42 @@ function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "face
     { label: "Portugal", current: data.pt[platform], previous: data.previousPeriod.pt[platform] },
   ];
 
-  // Follower momentum: how this period's gain compares to the previous one.
+  // Follower momentum: only when this period's gain clearly beats the previous one.
   for (const c of countries) {
-    const stagnant = c.current.followersDelta <= 0;
+    if (c.current.followersDelta <= 0) continue;
     const change = pctChange(c.current.followersDelta, c.previous.followersGained);
-    if (stagnant) {
+    if (change >= 15) {
       candidates.push({
-        text: `${c.label} apenas ganó seguidores en ${platformLabel} este periodo (${c.current.followersDelta >= 0 ? "+" : ""}${formatNumber(
-          c.current.followersDelta
-        )}, frente a +${formatNumber(c.previous.followersGained)} en el anterior) — merece revisar qué cambió en el contenido publicado.`,
-        weight: 60,
-        negative: true,
-      });
-    } else if (Math.abs(change) >= 15) {
-      const improving = change > 0;
-      candidates.push({
-        text: `${c.label} ${improving ? "aceleró" : "frenó"} su captación de seguidores en ${platformLabel}: ${
-          improving ? "+" : ""
-        }${change.toFixed(0)}% respecto al periodo anterior (${formatNumber(c.current.followersDelta)} vs +${formatNumber(c.previous.followersGained)}).`,
-        weight: Math.abs(change),
-        negative: !improving,
+        text: `${c.label} aceleró su captación de seguidores en ${platformLabel}: +${change.toFixed(
+          0
+        )}% respecto al periodo anterior (${formatNumber(c.current.followersDelta)} vs +${formatNumber(c.previous.followersGained)}).`,
+        weight: change,
       });
     }
   }
 
-  // Reach momentum.
+  // Reach momentum: only genuine growth.
   for (const c of countries) {
     const change = pctChange(c.current.reach, c.previous.reach);
-    if (Math.abs(change) >= 20) {
-      const improving = change > 0;
+    if (change >= 20) {
       candidates.push({
-        text: `El alcance de ${c.label} en ${platformLabel} ${improving ? "subió" : "cayó"} un ${Math.abs(change).toFixed(
-          0
-        )}% frente al periodo anterior (${formatNumber(c.current.reach)} vs ${formatNumber(c.previous.reach)}).`,
-        weight: Math.abs(change) * 0.9,
-        negative: !improving,
+        text: `El alcance de ${c.label} en ${platformLabel} subió un ${change.toFixed(0)}% frente al periodo anterior (${formatNumber(
+          c.current.reach
+        )} vs ${formatNumber(c.previous.reach)}).`,
+        weight: change * 0.9,
       });
     }
   }
 
-  // Interaction momentum.
+  // Interaction momentum: only genuine growth.
   for (const c of countries) {
     const change = pctChange(c.current.interactions, c.previous.interactions);
-    if (Math.abs(change) >= 20) {
-      const improving = change > 0;
+    if (change >= 20) {
       candidates.push({
-        text: `Las interacciones de ${c.label} en ${platformLabel} ${improving ? "crecieron" : "bajaron"} un ${Math.abs(change).toFixed(
-          0
-        )}% respecto al periodo anterior (${formatNumber(c.current.interactions)} vs ${formatNumber(c.previous.interactions)}).`,
-        weight: Math.abs(change) * 0.85,
-        negative: !improving,
+        text: `Las interacciones de ${c.label} en ${platformLabel} crecieron un ${change.toFixed(0)}% respecto al periodo anterior (${formatNumber(
+          c.current.interactions
+        )} vs ${formatNumber(c.previous.interactions)}).`,
+        weight: change * 0.85,
       });
     }
   }
@@ -179,36 +165,32 @@ function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "face
           ranked[0].count
         } publicaciones), muy por encima de "${ranked[1].type}" (${ranked[1].avg.toFixed(1)}%).`,
         weight: (ranked[0].avg / Math.max(0.1, ranked[1].avg)) * 12,
-        negative: false,
       });
     }
   }
 
-  // Underperforming post — flagged only when it falls well below the period average.
+  // Standout post — the top performer of the period, when it clearly leads the pack.
   if (platformPosts.length >= 4) {
     const mean = platformPosts.reduce((a, p) => a + (p.engagementRate as number), 0) / platformPosts.length;
-    const worst = platformPosts.reduce((a, p) => ((p.engagementRate as number) < (a.engagementRate as number) ? p : a));
-    if (mean > 0 && (worst.engagementRate as number) < mean * 0.4) {
+    const best = platformPosts.reduce((a, p) => ((p.engagementRate as number) > (a.engagementRate as number) ? p : a));
+    if (mean > 0 && (best.engagementRate as number) > mean * 1.8) {
       candidates.push({
-        text: `Una publicación de tipo ${worst.type} en ${worst.country === "es" ? "España" : "Portugal"} (${formatShortDate(
-          worst.date
-        )}) tuvo solo ${(worst.engagementRate as number).toFixed(1)}% de interacción, muy por debajo de la media del periodo (${mean.toFixed(1)}%).`,
-        weight: ((mean - (worst.engagementRate as number)) / mean) * 45,
-        negative: true,
+        text: `Una publicación de tipo ${best.type} en ${best.country === "es" ? "España" : "Portugal"} destacó con ${(best.engagementRate as number).toFixed(
+          1
+        )}% de interacción, muy por encima de la media del periodo (${mean.toFixed(1)}%).`,
+        weight: (((best.engagementRate as number) - mean) / mean) * 40,
       });
     }
   }
 
-  // Meta Ads efficiency trend (account-wide, since the ad account is shared).
+  // Meta Ads efficiency trend (account-wide, since the ad account is shared) — only when it improved.
   const cpcChange = pctChange(data.ads.total.cpc, data.previousPeriod.ads.total.cpc);
-  if (data.ads.total.clicks > 0 && data.previousPeriod.ads.total.clicks > 0 && Math.abs(cpcChange) >= 12) {
-    const improving = cpcChange < 0;
+  if (data.ads.total.clicks > 0 && data.previousPeriod.ads.total.clicks > 0 && cpcChange <= -12) {
     candidates.push({
-      text: `El coste por clic en Meta Ads ${improving ? "bajó" : "subió"} un ${Math.abs(cpcChange).toFixed(0)}% respecto al periodo anterior (${data.ads.total.cpc.toFixed(
+      text: `El coste por clic en Meta Ads bajó un ${Math.abs(cpcChange).toFixed(0)}% respecto al periodo anterior (${data.ads.total.cpc.toFixed(
         2
       )}€ vs ${data.previousPeriod.ads.total.cpc.toFixed(2)}€).`,
       weight: Math.abs(cpcChange) * 0.8,
-      negative: !improving,
     });
   } else if (data.ads.es.clicks > 0 && data.ads.pt.clicks > 0) {
     const cheaperCpc = data.ads.es.cpc <= data.ads.pt.cpc ? "España" : "Portugal";
@@ -220,7 +202,6 @@ function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "face
           data.ads.pt.cpc
         ).toFixed(2)}€ vs ${Math.max(data.ads.es.cpc, data.ads.pt.cpc).toFixed(2)}€ por clic).`,
         weight: gap * 0.5,
-        negative: false,
       });
     }
   }
@@ -228,22 +209,14 @@ function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "face
   return candidates;
 }
 
-// Ranks candidates by how much they actually stand out this period, then makes
-// sure the result isn't purely good news — if a real negative signal exists it
-// gets a guaranteed seat, matching how an analyst would actually flag risks.
+// Ranks candidates by how much they actually stand out this period and keeps
+// the top ones — every candidate here is already a positive signal, so this
+// is a pure "what mattered most" ranking, not a balance of good vs. bad news.
 function selectInsights(candidates: InsightCandidate[], max = 5): string[] {
-  const sorted = [...candidates].sort((a, b) => b.weight - a.weight);
-  const selected = sorted.slice(0, max);
-
-  const hasNegative = selected.some((c) => c.negative);
-  if (!hasNegative) {
-    const bestNegative = sorted.find((c) => c.negative && !selected.includes(c));
-    if (bestNegative && selected.length > 0) {
-      selected[selected.length - 1] = bestNegative;
-    }
-  }
-
-  return selected.map((c) => c.text);
+  return [...candidates]
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, max)
+    .map((c) => c.text);
 }
 
 export default function Page() {
@@ -452,7 +425,7 @@ export default function Page() {
               ))}
             </div>
             {evolutionMetric === "followers" && (
-              <TrendChart title="Evolución de seguidores" esSeries={data.es[platform].followersSeries} ptSeries={data.pt[platform].followersSeries} />
+              <FollowersChart esSeries={data.es[platform].followersSeries} ptSeries={data.pt[platform].followersSeries} />
             )}
             {evolutionMetric === "reach" && (
               <AreaChart title={`${reachLabel} diario`} esSeries={data.es[platform].reachSeries} ptSeries={data.pt[platform].reachSeries} />

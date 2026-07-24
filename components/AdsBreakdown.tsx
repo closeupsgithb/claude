@@ -55,16 +55,11 @@ export default function AdsBreakdown({ ads }: Props) {
         boxShadow: "var(--card-shadow)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
         <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", fontWeight: 600 }}>
           Meta Ads · Paid Media
         </span>
       </div>
-      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>
-        Metodología: la inversión se atribuye a España o Portugal según el país indicado en el nombre de cada campaña.
-        Ambos mercados comparten una misma cuenta publicitaria de Meta, por lo que el desglose se reporta a nivel de
-        campaña y no de plataforma individual.
-      </p>
 
       <div style={{ overflowX: "auto", marginBottom: 20 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 640 }}>
