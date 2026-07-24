@@ -6,6 +6,7 @@ import type { SeriesPoint } from "@/lib/metricool";
 
 type Props = {
   title: string;
+  subtitle?: string;
   esSeries: SeriesPoint[];
   ptSeries: SeriesPoint[];
   esLabel?: string;
@@ -39,7 +40,7 @@ function seriesPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
 }
 
-export default function AreaChart({ title, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
+export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const gradId = useId();
@@ -99,8 +100,11 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
   return (
     <div style={cardStyle}>
       <div style={headerStyle}>
-        <h3 style={titleStyle}>{title}</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div>
+          <h3 style={titleStyle}>{title}</h3>
+          {subtitle && <p style={subtitleStyle}>{subtitle}</p>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
           <Legend esLabel={esLabel} ptLabel={ptLabel} />
           <button onClick={() => setShowTable((s) => !s)} style={toggleButtonStyle}>
             {showTable ? "Ver gráfico" : "Ver tabla"}
@@ -259,8 +263,9 @@ const cardStyle: CSSProperties = {
   boxShadow: "var(--card-shadow)",
 };
 
-const headerStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 };
+const headerStyle: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 };
 const titleStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" };
+const subtitleStyle: CSSProperties = { margin: "2px 0 0", fontSize: 11.5, color: "var(--text-muted)" };
 const toggleButtonStyle: CSSProperties = {
   fontSize: 12,
   color: "var(--text-secondary)",

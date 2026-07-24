@@ -102,8 +102,9 @@ const cardStyle: CSSProperties = {
   background: "var(--surface-1)",
   border: "1px solid var(--border)",
   borderRadius: 12,
-  padding: "16px 18px",
+  padding: "16px 16px 12px",
   boxShadow: "var(--card-shadow)",
+  height: "100%",
 };
 
 const titleStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" };

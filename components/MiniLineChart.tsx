@@ -10,12 +10,12 @@ type Props = {
   formatValue?: (n: number) => string;
 };
 
-const WIDTH = 340;
-const HEIGHT = 140;
-const PAD_LEFT = 40;
+const WIDTH = 320;
+const HEIGHT = 180;
+const PAD_LEFT = 42;
 const PAD_RIGHT = 12;
-const PAD_TOP = 12;
-const PAD_BOTTOM = 22;
+const PAD_TOP = 16;
+const PAD_BOTTOM = 26;
 
 function defaultFormat(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(n);
@@ -40,8 +40,9 @@ export default function MiniLineChart({ title, series, colorVar = "--series-es",
 
   if (series.length === 0) {
     return (
-      <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, fontSize: 13, color: "var(--text-muted)" }}>
-        {title} — sin datos.
+      <div style={cardStyle}>
+        <h4 style={titleStyle}>{title}</h4>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "8px 0 0" }}>Sin datos en este periodo.</p>
       </div>
     );
   }
@@ -59,8 +60,8 @@ export default function MiniLineChart({ title, series, colorVar = "--series-es",
   const hover = hoverIdx !== null ? series[hoverIdx] : null;
 
   return (
-    <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", boxShadow: "var(--card-shadow)" }}>
-      <h4 style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{title}</h4>
+    <div style={cardStyle}>
+      <h4 style={titleStyle}>{title}</h4>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"
@@ -97,7 +98,7 @@ export default function MiniLineChart({ title, series, colorVar = "--series-es",
           {formatDateShort(series[series.length - 1].date)}
         </text>
       </svg>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
         {hover ? (
           <>
             {formatDateShort(hover.date)}: <strong>{formatValue(hover.value)}</strong>
@@ -111,3 +112,16 @@ export default function MiniLineChart({ title, series, colorVar = "--series-es",
     </div>
   );
 }
+
+const cardStyle = {
+  background: "var(--surface-1)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: "16px 16px 12px",
+  boxShadow: "var(--card-shadow)",
+  display: "flex",
+  flexDirection: "column" as const,
+  height: "100%",
+};
+
+const titleStyle = { margin: "0 0 8px", fontSize: 14, fontWeight: 600, color: "var(--text-primary)" };

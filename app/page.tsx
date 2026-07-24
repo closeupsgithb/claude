@@ -10,6 +10,7 @@ import FollowersChart from "@/components/FollowersChart";
 import BarChart from "@/components/BarChart";
 import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
+import ContentIntelligence from "@/components/ContentIntelligence";
 import Logo from "@/components/Logo";
 import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, ContentType, SeriesPoint, PeriodSummary } from "@/lib/metricool";
 
@@ -416,6 +417,11 @@ export default function Page() {
           </div>
 
           <div>
+            <SectionLabel>Producto y técnica</SectionLabel>
+            <ContentIntelligence items={data.posts} />
+          </div>
+
+          <div>
             <SectionLabel>Evolución diaria</SectionLabel>
             <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
               {EVOLUTION_METRICS.map((m) => (
@@ -428,11 +434,21 @@ export default function Page() {
               <FollowersChart esSeries={data.es[platform].followersSeries} ptSeries={data.pt[platform].followersSeries} />
             )}
             {evolutionMetric === "reach" && (
-              <AreaChart title={`${reachLabel} diario`} esSeries={data.es[platform].reachSeries} ptSeries={data.pt[platform].reachSeries} />
+              <AreaChart
+                title={`${reachLabel} diario`}
+                subtitle={
+                  platform === "instagram"
+                    ? "Cuentas únicas que vieron el contenido cada día — indica cuánta gente nueva o recurrente está viendo lo que publica cada país."
+                    : "Visualizaciones diarias del contenido — indica cuánta gente está viendo lo que publica cada país cada día."
+                }
+                esSeries={data.es[platform].reachSeries}
+                ptSeries={data.pt[platform].reachSeries}
+              />
             )}
             {evolutionMetric === "interactions" && (
               <AreaChart
                 title="Interacciones diarias"
+                subtitle="Likes, comentarios y compartidos sumados cada día — cuanto más alto, más está reaccionando la audiencia al contenido publicado ese día."
                 esSeries={data.es[platform].interactionsSeries}
                 ptSeries={data.pt[platform].interactionsSeries}
               />
@@ -440,6 +456,7 @@ export default function Page() {
             {evolutionMetric === "engagement" && (
               <TrendChart
                 title="Evolución de la tasa de interacción"
+                subtitle="Interacciones respecto al alcance de cada día (%) — mide si el contenido conecta con quien lo ve, más allá de a cuánta gente llega."
                 esSeries={engagementRateSeries(data.es[platform].reachSeries, data.es[platform].interactionsSeries)}
                 ptSeries={engagementRateSeries(data.pt[platform].reachSeries, data.pt[platform].interactionsSeries)}
               />

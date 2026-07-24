@@ -6,6 +6,7 @@ import type { SeriesPoint } from "@/lib/metricool";
 
 type Props = {
   title: string;
+  subtitle?: string;
   esSeries: SeriesPoint[];
   ptSeries: SeriesPoint[];
   esLabel?: string;
@@ -35,7 +36,7 @@ function formatDateFull(iso: string): string {
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)}, ${rest}`;
 }
 
-export default function TrendChart({ title, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
+export default function TrendChart({ title, subtitle, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const gradId = useId();
@@ -120,9 +121,12 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa�
         boxShadow: "var(--card-shadow)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{title}</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{title}</h3>
+          {subtitle && <p style={{ margin: "2px 0 0", fontSize: 11.5, color: "var(--text-muted)" }}>{subtitle}</p>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
           <Legend esLabel={esLabel} ptLabel={ptLabel} />
           <button
             onClick={() => setShowTable((s) => !s)}

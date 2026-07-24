@@ -52,6 +52,7 @@ export type ContentItem = {
   views: number;
   interactions: number;
   engagementRate: number | null;
+  content: string;
 };
 
 const METRIC_FIELD: Record<NetworkKey, { followers: string; reach: string; interactions: string; posts: string }> = {
@@ -303,6 +304,7 @@ type IgPost = {
   reach: number;
   interactions: number;
   views?: number;
+  content?: string;
 };
 
 type IgReel = {
@@ -313,6 +315,7 @@ type IgReel = {
   reach: number;
   interactions: number;
   views: number;
+  content?: string;
 };
 
 type FbPost = {
@@ -327,6 +330,7 @@ type FbPost = {
   comments: number;
   shares: number;
   videoViews?: number;
+  text?: string;
 };
 
 type FbReel = {
@@ -337,6 +341,7 @@ type FbReel = {
   blueReelsPlayCount: number;
   postVideoReactions: number;
   postVideoSocialActions: number;
+  description?: string;
 };
 
 export async function fetchTopPosts(country: CountryKey, from: string, to: string): Promise<ContentItem[]> {
@@ -363,6 +368,7 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
       views: p.views ?? p.reach ?? 0,
       interactions: p.interactions ?? 0,
       engagementRate: p.reach > 0 ? (p.interactions / p.reach) * 100 : 0,
+      content: p.content ?? "",
     }));
 
   const igReelItems: ContentItem[] = (igReelsRes.data ?? []).map((r) => ({
@@ -377,6 +383,7 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
     views: r.views ?? 0,
     interactions: r.interactions ?? 0,
     engagementRate: r.reach > 0 ? (r.interactions / r.reach) * 100 : 0,
+    content: r.content ?? "",
   }));
 
   const fbPostItems: ContentItem[] = (fbPostsRes.data ?? [])
@@ -396,6 +403,7 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
         views: p.videoViews ?? reach,
         interactions,
         engagementRate: reach > 0 ? (interactions / reach) * 100 : 0,
+        content: p.text ?? "",
       };
     });
 
@@ -415,6 +423,7 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
     views: r.blueReelsPlayCount ?? 0,
     interactions: (r.postVideoReactions ?? 0) + (r.postVideoSocialActions ?? 0),
     engagementRate: null,
+    content: r.description ?? "",
   }));
 
   return [...igPostItems, ...igReelItems, ...fbPostItems, ...fbReelItems];
