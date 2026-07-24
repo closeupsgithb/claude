@@ -61,8 +61,9 @@ export default function AdsBreakdown({ ads }: Props) {
         </span>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 16px" }}>
-        País clasificado por nombre de campaña. La cuenta publicitaria es compartida entre España y Portugal — el desglose por
-        plataforma (Instagram / Facebook) del gasto no está disponible de forma fiable en tiempo real.
+        Metodología: la inversión se atribuye a España o Portugal según el país indicado en el nombre de cada campaña.
+        Ambos mercados comparten una misma cuenta publicitaria de Meta, por lo que el desglose se reporta a nivel de
+        campaña y no de plataforma individual.
       </p>
 
       <div style={{ overflowX: "auto", marginBottom: 20 }}>

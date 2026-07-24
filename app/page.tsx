@@ -10,7 +10,7 @@ import BarChart from "@/components/BarChart";
 import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import Logo from "@/components/Logo";
-import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, SeriesPoint, PeriodSummary } from "@/lib/metricool";
+import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, ContentType, SeriesPoint, PeriodSummary } from "@/lib/metricool";
 
 type ApiResponse = {
   generatedAt: string;
@@ -26,6 +26,7 @@ type ApiResponse = {
     to: string;
     es: { instagram: PeriodSummary; facebook: PeriodSummary };
     pt: { instagram: PeriodSummary; facebook: PeriodSummary };
+    ads: AdsBreakdownType;
   };
 };
 
@@ -34,6 +35,14 @@ type ApiError = { error: "MISSING_CREDENTIALS" | "UPSTREAM_ERROR"; detail?: stri
 const REFRESH_MS = 5 * 60 * 1000;
 const DAY_OPTIONS = [7, 30, 90];
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+type EvolutionMetric = "followers" | "reach" | "interactions" | "engagement";
+const EVOLUTION_METRICS: { key: EvolutionMetric; label: (reachLabel: string) => string }[] = [
+  { key: "followers", label: () => "Seguidores" },
+  { key: "reach", label: (reachLabel) => reachLabel },
+  { key: "interactions", label: () => "Interacciones" },
+  { key: "engagement", label: () => "Tasa de interacción" },
+];
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
@@ -77,59 +86,170 @@ function buildCsv(data: ApiResponse, platform: "instagram" | "facebook", reachLa
   return rows.map((r) => r.join(";")).join("\n");
 }
 
-function buildInsights(data: ApiResponse, platform: "instagram" | "facebook"): string[] {
-  const insights: string[] = [];
-  const es = data.es[platform];
-  const pt = data.pt[platform];
+type InsightCandidate = { text: string; weight: number; negative: boolean };
 
-  if (es.followersDelta !== pt.followersDelta) {
-    const leader = es.followersDelta >= pt.followersDelta ? "España" : "Portugal";
-    const delta = Math.max(es.followersDelta, pt.followersDelta);
-    insights.push(`${leader} lidera el crecimiento de seguidores en ${platform === "instagram" ? "Instagram" : "Facebook"} con +${formatNumber(delta)} en el periodo.`);
+function pctChange(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : current < 0 ? -100 : 0;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function formatShortDate(iso: string): string {
+  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" }).format(new Date(iso));
+}
+
+function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "facebook"): InsightCandidate[] {
+  const platformLabel = platform === "instagram" ? "Instagram" : "Facebook";
+  const candidates: InsightCandidate[] = [];
+
+  const countries: { label: string; current: NetworkSnapshot; previous: PeriodSummary }[] = [
+    { label: "España", current: data.es[platform], previous: data.previousPeriod.es[platform] },
+    { label: "Portugal", current: data.pt[platform], previous: data.previousPeriod.pt[platform] },
+  ];
+
+  // Follower momentum: how this period's gain compares to the previous one.
+  for (const c of countries) {
+    const stagnant = c.current.followersDelta <= 0;
+    const change = pctChange(c.current.followersDelta, c.previous.followersGained);
+    if (stagnant) {
+      candidates.push({
+        text: `${c.label} apenas ganó seguidores en ${platformLabel} este periodo (${c.current.followersDelta >= 0 ? "+" : ""}${formatNumber(
+          c.current.followersDelta
+        )}, frente a +${formatNumber(c.previous.followersGained)} en el anterior) — merece revisar qué cambió en el contenido publicado.`,
+        weight: 60,
+        negative: true,
+      });
+    } else if (Math.abs(change) >= 15) {
+      const improving = change > 0;
+      candidates.push({
+        text: `${c.label} ${improving ? "aceleró" : "frenó"} su captación de seguidores en ${platformLabel}: ${
+          improving ? "+" : ""
+        }${change.toFixed(0)}% respecto al periodo anterior (${formatNumber(c.current.followersDelta)} vs +${formatNumber(c.previous.followersGained)}).`,
+        weight: Math.abs(change),
+        negative: !improving,
+      });
+    }
   }
 
-  const esEng = es.reach > 0 ? (es.interactions / es.reach) * 100 : 0;
-  const ptEng = pt.reach > 0 ? (pt.interactions / pt.reach) * 100 : 0;
-  if (esEng > 0 || ptEng > 0) {
-    const leader = esEng >= ptEng ? "España" : "Portugal";
-    const rate = Math.max(esEng, ptEng);
-    insights.push(`${leader} tiene la tasa de interacción más alta (${rate.toFixed(1)}%).`);
+  // Reach momentum.
+  for (const c of countries) {
+    const change = pctChange(c.current.reach, c.previous.reach);
+    if (Math.abs(change) >= 20) {
+      const improving = change > 0;
+      candidates.push({
+        text: `El alcance de ${c.label} en ${platformLabel} ${improving ? "subió" : "cayó"} un ${Math.abs(change).toFixed(
+          0
+        )}% frente al periodo anterior (${formatNumber(c.current.reach)} vs ${formatNumber(c.previous.reach)}).`,
+        weight: Math.abs(change) * 0.9,
+        negative: !improving,
+      });
+    }
   }
 
+  // Interaction momentum.
+  for (const c of countries) {
+    const change = pctChange(c.current.interactions, c.previous.interactions);
+    if (Math.abs(change) >= 20) {
+      const improving = change > 0;
+      candidates.push({
+        text: `Las interacciones de ${c.label} en ${platformLabel} ${improving ? "crecieron" : "bajaron"} un ${Math.abs(change).toFixed(
+          0
+        )}% respecto al periodo anterior (${formatNumber(c.current.interactions)} vs ${formatNumber(c.previous.interactions)}).`,
+        weight: Math.abs(change) * 0.85,
+        negative: !improving,
+      });
+    }
+  }
+
+  // Best content format — only surfaced when there's a real gap vs. the runner-up.
   const platformPosts = data.posts.filter((p) => p.network === platform && p.engagementRate !== null);
-  if (platformPosts.length > 0) {
-    const byType = new Map<string, { sum: number; count: number }>();
+  if (platformPosts.length >= 3) {
+    const byType = new Map<ContentType, { sum: number; count: number }>();
     platformPosts.forEach((p) => {
       const cur = byType.get(p.type) ?? { sum: 0, count: 0 };
       cur.sum += p.engagementRate as number;
       cur.count += 1;
       byType.set(p.type, cur);
     });
-    let bestType = "";
-    let bestAvg = -1;
-    byType.forEach((v, k) => {
-      const avg = v.sum / v.count;
-      if (avg > bestAvg) {
-        bestAvg = avg;
-        bestType = k;
-      }
-    });
-    if (bestType) {
-      insights.push(`El formato "${bestType}" genera la mejor interacción media (${bestAvg.toFixed(1)}%) en ${platform === "instagram" ? "Instagram" : "Facebook"}.`);
+    const ranked = Array.from(byType.entries())
+      .map(([type, v]) => ({ type, avg: v.sum / v.count, count: v.count }))
+      .sort((a, b) => b.avg - a.avg);
+    if (ranked.length >= 2 && ranked[0].avg > ranked[1].avg * 1.25) {
+      candidates.push({
+        text: `El formato "${ranked[0].type}" es el que mejor funciona en ${platformLabel} (${ranked[0].avg.toFixed(1)}% de interacción media sobre ${
+          ranked[0].count
+        } publicaciones), muy por encima de "${ranked[1].type}" (${ranked[1].avg.toFixed(1)}%).`,
+        weight: (ranked[0].avg / Math.max(0.1, ranked[1].avg)) * 12,
+        negative: false,
+      });
     }
   }
 
-  if (data.ads.es.clicks > 0 && data.ads.pt.clicks > 0) {
-    const cheaper = data.ads.es.cpc <= data.ads.pt.cpc ? "España" : "Portugal";
-    insights.push(`${cheaper} tiene el coste por clic más eficiente en Meta Ads.`);
+  // Underperforming post — flagged only when it falls well below the period average.
+  if (platformPosts.length >= 4) {
+    const mean = platformPosts.reduce((a, p) => a + (p.engagementRate as number), 0) / platformPosts.length;
+    const worst = platformPosts.reduce((a, p) => ((p.engagementRate as number) < (a.engagementRate as number) ? p : a));
+    if (mean > 0 && (worst.engagementRate as number) < mean * 0.4) {
+      candidates.push({
+        text: `Una publicación de tipo ${worst.type} en ${worst.country === "es" ? "España" : "Portugal"} (${formatShortDate(
+          worst.date
+        )}) tuvo solo ${(worst.engagementRate as number).toFixed(1)}% de interacción, muy por debajo de la media del periodo (${mean.toFixed(1)}%).`,
+        weight: ((mean - (worst.engagementRate as number)) / mean) * 45,
+        negative: true,
+      });
+    }
   }
 
-  return insights.slice(0, 4);
+  // Meta Ads efficiency trend (account-wide, since the ad account is shared).
+  const cpcChange = pctChange(data.ads.total.cpc, data.previousPeriod.ads.total.cpc);
+  if (data.ads.total.clicks > 0 && data.previousPeriod.ads.total.clicks > 0 && Math.abs(cpcChange) >= 12) {
+    const improving = cpcChange < 0;
+    candidates.push({
+      text: `El coste por clic en Meta Ads ${improving ? "bajó" : "subió"} un ${Math.abs(cpcChange).toFixed(0)}% respecto al periodo anterior (${data.ads.total.cpc.toFixed(
+        2
+      )}€ vs ${data.previousPeriod.ads.total.cpc.toFixed(2)}€).`,
+      weight: Math.abs(cpcChange) * 0.8,
+      negative: !improving,
+    });
+  } else if (data.ads.es.clicks > 0 && data.ads.pt.clicks > 0) {
+    const cheaperCpc = data.ads.es.cpc <= data.ads.pt.cpc ? "España" : "Portugal";
+    const gap = pctChange(Math.max(data.ads.es.cpc, data.ads.pt.cpc), Math.min(data.ads.es.cpc, data.ads.pt.cpc));
+    if (gap >= 20) {
+      candidates.push({
+        text: `${cheaperCpc} consigue clics notablemente más baratos en Meta Ads que el otro mercado (${Math.min(
+          data.ads.es.cpc,
+          data.ads.pt.cpc
+        ).toFixed(2)}€ vs ${Math.max(data.ads.es.cpc, data.ads.pt.cpc).toFixed(2)}€ por clic).`,
+        weight: gap * 0.5,
+        negative: false,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+// Ranks candidates by how much they actually stand out this period, then makes
+// sure the result isn't purely good news — if a real negative signal exists it
+// gets a guaranteed seat, matching how an analyst would actually flag risks.
+function selectInsights(candidates: InsightCandidate[], max = 5): string[] {
+  const sorted = [...candidates].sort((a, b) => b.weight - a.weight);
+  const selected = sorted.slice(0, max);
+
+  const hasNegative = selected.some((c) => c.negative);
+  if (!hasNegative) {
+    const bestNegative = sorted.find((c) => c.negative && !selected.includes(c));
+    if (bestNegative && selected.length > 0) {
+      selected[selected.length - 1] = bestNegative;
+    }
+  }
+
+  return selected.map((c) => c.text);
 }
 
 export default function Page() {
   const [platform, setPlatform] = useState<"instagram" | "facebook">("instagram");
   const [days, setDays] = useState(30);
+  const [evolutionMetric, setEvolutionMetric] = useState<EvolutionMetric>("followers");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,7 +293,7 @@ export default function Page() {
     URL.revokeObjectURL(url);
   };
 
-  const insights = useMemo(() => (data ? buildInsights(data, platform) : []), [data, platform]);
+  const insights = useMemo(() => (data ? selectInsights(buildInsightCandidates(data, platform)) : []), [data, platform]);
 
   const weekdayData = useMemo(() => {
     if (!data) return { es: new Array(7).fill(0), pt: new Array(7).fill(0) };
@@ -324,24 +444,33 @@ export default function Page() {
 
           <div>
             <SectionLabel>Evolución diaria</SectionLabel>
-            <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <TrendChart
-                title="Evolución de seguidores"
-                esSeries={data.es[platform].followersSeries}
-                ptSeries={data.pt[platform].followersSeries}
-              />
+            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+              {EVOLUTION_METRICS.map((m) => (
+                <button key={m.key} onClick={() => setEvolutionMetric(m.key)} style={tabStyle(evolutionMetric === m.key)}>
+                  {m.label(reachLabel)}
+                </button>
+              ))}
+            </div>
+            {evolutionMetric === "followers" && (
+              <TrendChart title="Evolución de seguidores" esSeries={data.es[platform].followersSeries} ptSeries={data.pt[platform].followersSeries} />
+            )}
+            {evolutionMetric === "reach" && (
               <AreaChart title={`${reachLabel} diario`} esSeries={data.es[platform].reachSeries} ptSeries={data.pt[platform].reachSeries} />
+            )}
+            {evolutionMetric === "interactions" && (
               <AreaChart
                 title="Interacciones diarias"
                 esSeries={data.es[platform].interactionsSeries}
                 ptSeries={data.pt[platform].interactionsSeries}
               />
+            )}
+            {evolutionMetric === "engagement" && (
               <TrendChart
                 title="Evolución de la tasa de interacción"
                 esSeries={engagementRateSeries(data.es[platform].reachSeries, data.es[platform].interactionsSeries)}
                 ptSeries={engagementRateSeries(data.pt[platform].reachSeries, data.pt[platform].interactionsSeries)}
               />
-            </section>
+            )}
           </div>
 
           <div>
@@ -378,7 +507,7 @@ function TotalStat({ label, value }: { label: string; value: number | null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>{value !== null ? formatNumber(value) : "–"}</span>
+      <span style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.01em", color: "var(--text-primary)" }}>{value !== null ? formatNumber(value) : "–"}</span>
     </div>
   );
 }

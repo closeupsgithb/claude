@@ -42,6 +42,7 @@ export async function GET(request: Request) {
       prevEsFacebook,
       prevPtInstagram,
       prevPtFacebook,
+      prevAds,
     ] = await Promise.all([
       fetchNetworkSnapshot("instagram", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.es.id, fromIso, toIso),
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
       fetchPeriodSummary("facebook", BRANDS.es.id, prevFromIso, prevToIso),
       fetchPeriodSummary("instagram", BRANDS.pt.id, prevFromIso, prevToIso),
       fetchPeriodSummary("facebook", BRANDS.pt.id, prevFromIso, prevToIso),
+      fetchAdsBreakdown(prevFromIso, prevToIso),
     ]);
 
     return NextResponse.json({
@@ -70,6 +72,7 @@ export async function GET(request: Request) {
         to: prevToIso,
         es: { instagram: prevEsInstagram, facebook: prevEsFacebook },
         pt: { instagram: prevPtInstagram, facebook: prevPtFacebook },
+        ads: prevAds,
       },
     });
   } catch (err) {
