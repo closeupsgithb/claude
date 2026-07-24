@@ -30,7 +30,9 @@ function formatDateShort(iso: string): string {
 
 function formatDateFull(iso: string): string {
   const d = new Date(iso);
-  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "long", year: "numeric" }).format(d);
+  const weekday = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(d);
+  const rest = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "long", year: "numeric" }).format(d);
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)}, ${rest}`;
 }
 
 export default function AreaChart({ title, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
@@ -92,6 +94,13 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
     " Z";
 
   const gridValues = Array.from({ length: 5 }, (_, i) => (domainMax * i) / 4);
+
+  const tickCount = Math.min(6, allDates.length);
+  const xAxisTicks =
+    allDates.length <= 1
+      ? [0]
+      : Array.from(new Set(Array.from({ length: tickCount }, (_, i) => Math.round((i * (allDates.length - 1)) / (tickCount - 1)))));
+
   const hoverDate = hoverIdx !== null ? allDates[hoverIdx] : null;
 
   return (
@@ -155,12 +164,25 @@ export default function AreaChart({ title, esSeries, ptSeries, esLabel = "Españ
             />
           )}
 
-          <text x={PAD_LEFT} y={HEIGHT - 8} fontSize={10} fill="var(--text-muted)">
-            {formatDateShort(allDates[0])}
-          </text>
-          <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 8} fontSize={10} fill="var(--text-muted)" textAnchor="end">
-            {formatDateShort(allDates[allDates.length - 1])}
-          </text>
+          {xAxisTicks.map((idx) => {
+            const d = allDates[idx];
+            const isFirst = idx === 0;
+            const isLast = idx === allDates.length - 1;
+            return (
+              <g key={idx}>
+                <line x1={xScale(d)} x2={xScale(d)} y1={baseline} y2={baseline + 4} stroke="var(--baseline)" strokeWidth={1} />
+                <text
+                  x={xScale(d)}
+                  y={HEIGHT - 8}
+                  fontSize={10}
+                  fill="var(--text-muted)"
+                  textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+                >
+                  {formatDateShort(d)}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       ) : (
         <div style={{ maxHeight: 220, overflowY: "auto" }}>

@@ -83,12 +83,12 @@ function buildInsights(data: ApiResponse, platform: "instagram" | "facebook"): s
     insights.push(`${leader} tiene la tasa de interacción más alta (${rate.toFixed(1)}%).`);
   }
 
-  const platformPosts = data.posts.filter((p) => p.network === platform);
+  const platformPosts = data.posts.filter((p) => p.network === platform && p.engagementRate !== null);
   if (platformPosts.length > 0) {
     const byType = new Map<string, { sum: number; count: number }>();
     platformPosts.forEach((p) => {
       const cur = byType.get(p.type) ?? { sum: 0, count: 0 };
-      cur.sum += p.engagementRate;
+      cur.sum += p.engagementRate as number;
       cur.count += 1;
       byType.set(p.type, cur);
     });
@@ -180,11 +180,11 @@ export default function Page() {
     if (!data) return { types: [] as string[], es: [] as number[], pt: [] as number[] };
     const map = new Map<string, { es: number[]; pt: number[] }>();
     data.posts
-      .filter((p) => p.network === platform)
+      .filter((p) => p.network === platform && p.engagementRate !== null)
       .forEach((p) => {
         const entry = map.get(p.type) ?? { es: [], pt: [] };
-        if (p.country === "es") entry.es.push(p.engagementRate);
-        else entry.pt.push(p.engagementRate);
+        if (p.country === "es") entry.es.push(p.engagementRate as number);
+        else entry.pt.push(p.engagementRate as number);
         map.set(p.type, entry);
       });
     const types = Array.from(map.keys());
@@ -264,70 +264,89 @@ export default function Page() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <InsightBanner insights={insights} />
 
-          <section
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 24,
-              background: "var(--surface-1)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              padding: "14px 18px",
-              boxShadow: "var(--card-shadow)",
-            }}
-          >
-            <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>
-              Total Iberia ({platform === "instagram" ? "Instagram" : "Facebook"})
-            </span>
-            <TotalStat label="Seguidores" value={combinedFollowers} />
-            <TotalStat label={reachLabel} value={combinedReach} />
-            <TotalStat label="Interacciones" value={combinedInteractions} />
-          </section>
+          <div>
+            <SectionLabel>{`Total Iberia · ${platform === "instagram" ? "Instagram" : "Facebook"}`}</SectionLabel>
+            <section
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 24,
+                background: "var(--surface-1)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "16px 18px",
+                boxShadow: "var(--card-shadow)",
+              }}
+            >
+              <TotalStat label="Seguidores" value={combinedFollowers} />
+              <TotalStat label={reachLabel} value={combinedReach} />
+              <TotalStat label="Interacciones" value={combinedInteractions} />
+            </section>
+          </div>
 
-          <section style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-            <CountryPanel countryLabel="España" colorVar="--series-es" data={data.es[platform]} reachLabel={reachLabel} />
-            <CountryPanel countryLabel="Portugal" colorVar="--series-pt" data={data.pt[platform]} reachLabel={reachLabel} />
-          </section>
+          <div>
+            <SectionLabel>España frente a Portugal</SectionLabel>
+            <section style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              <CountryPanel countryLabel="España" colorVar="--series-es" data={data.es[platform]} reachLabel={reachLabel} />
+              <CountryPanel countryLabel="Portugal" colorVar="--series-pt" data={data.pt[platform]} reachLabel={reachLabel} />
+            </section>
+          </div>
 
-          <TopContent items={platformPosts} />
+          <div>
+            <SectionLabel>Contenido</SectionLabel>
+            <TopContent items={platformPosts} />
+          </div>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <TrendChart
-              title="Evolución de seguidores"
-              esSeries={data.es[platform].followersSeries}
-              ptSeries={data.pt[platform].followersSeries}
-            />
-            <AreaChart title={`${reachLabel} diario`} esSeries={data.es[platform].reachSeries} ptSeries={data.pt[platform].reachSeries} />
-            <AreaChart
-              title="Interacciones diarias"
-              esSeries={data.es[platform].interactionsSeries}
-              ptSeries={data.pt[platform].interactionsSeries}
-            />
-            <TrendChart
-              title="Evolución de la tasa de interacción"
-              esSeries={engagementRateSeries(data.es[platform].reachSeries, data.es[platform].interactionsSeries)}
-              ptSeries={engagementRateSeries(data.pt[platform].reachSeries, data.pt[platform].interactionsSeries)}
-            />
-          </section>
+          <div>
+            <SectionLabel>Evolución diaria</SectionLabel>
+            <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <TrendChart
+                title="Evolución de seguidores"
+                esSeries={data.es[platform].followersSeries}
+                ptSeries={data.pt[platform].followersSeries}
+              />
+              <AreaChart title={`${reachLabel} diario`} esSeries={data.es[platform].reachSeries} ptSeries={data.pt[platform].reachSeries} />
+              <AreaChart
+                title="Interacciones diarias"
+                esSeries={data.es[platform].interactionsSeries}
+                ptSeries={data.pt[platform].interactionsSeries}
+              />
+              <TrendChart
+                title="Evolución de la tasa de interacción"
+                esSeries={engagementRateSeries(data.es[platform].reachSeries, data.es[platform].interactionsSeries)}
+                ptSeries={engagementRateSeries(data.pt[platform].reachSeries, data.pt[platform].interactionsSeries)}
+              />
+            </section>
+          </div>
 
-          <section style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 1fr)", gap: 14 }}>
-            <BarChart title="Interacciones por día de la semana" categories={WEEKDAY_LABELS} esValues={weekdayData.es} ptValues={weekdayData.pt} />
-            <BarChart
-              title="Interacción media por tipo de contenido"
-              categories={contentTypeData.types}
-              esValues={contentTypeData.es}
-              ptValues={contentTypeData.pt}
-              formatValue={(n) => `${n.toFixed(1)}%`}
-            />
-          </section>
+          <div>
+            <SectionLabel>Análisis de patrones</SectionLabel>
+            <section style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 1fr)", gap: 14 }}>
+              <BarChart title="Interacciones por día de la semana" categories={WEEKDAY_LABELS} esValues={weekdayData.es} ptValues={weekdayData.pt} />
+              <BarChart
+                title="Interacción media por tipo de contenido"
+                categories={contentTypeData.types}
+                esValues={contentTypeData.es}
+                ptValues={contentTypeData.pt}
+                formatValue={(n) => `${n.toFixed(1)}%`}
+              />
+            </section>
+          </div>
 
-          <AdsBreakdown ads={data.ads} />
+          <div>
+            <SectionLabel>Inversión publicitaria</SectionLabel>
+            <AdsBreakdown ads={data.ads} />
+          </div>
         </div>
       )}
 
       {!data && !error && loading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Cargando datos…</p>}
     </main>
   );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return <div style={sectionLabelStyle}>{children}</div>;
 }
 
 function TotalStat({ label, value }: { label: string; value: number | null }) {
@@ -379,6 +398,16 @@ const secondaryButtonStyle: CSSProperties = {
   background: "var(--surface-1)",
   color: "var(--text-secondary)",
   cursor: "pointer",
+};
+
+const sectionLabelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "var(--text-muted)",
+  marginBottom: 10,
+  paddingLeft: 2,
 };
 
 const noticeStyle: CSSProperties = {

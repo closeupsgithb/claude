@@ -88,6 +88,11 @@ export default function MiniLineChart({ title, series, colorVar = "--series-es",
         <text x={PAD_LEFT} y={HEIGHT - 6} fontSize={9} fill="var(--text-muted)">
           {formatDateShort(series[0].date)}
         </text>
+        {series.length > 2 && (
+          <text x={(PAD_LEFT + (WIDTH - PAD_RIGHT)) / 2} y={HEIGHT - 6} fontSize={9} fill="var(--text-muted)" textAnchor="middle">
+            {formatDateShort(series[Math.floor(series.length / 2)].date)}
+          </text>
+        )}
         <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 6} fontSize={9} fill="var(--text-muted)" textAnchor="end">
           {formatDateShort(series[series.length - 1].date)}
         </text>

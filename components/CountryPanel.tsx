@@ -27,7 +27,7 @@ export default function CountryPanel({ countryLabel, colorVar, data, reachLabel 
   return (
     <div
       style={{
-        background: "var(--surface-1)",
+        background: `linear-gradient(180deg, color-mix(in srgb, var(${colorVar}) 6%, var(--surface-1)), var(--surface-1) 90px)`,
         border: "1px solid var(--border)",
         borderTop: `3px solid var(${colorVar})`,
         borderRadius: 12,
@@ -39,7 +39,7 @@ export default function CountryPanel({ countryLabel, colorVar, data, reachLabel 
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: `var(${colorVar})`, display: "inline-block" }} />
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{countryLabel}</h2>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>{countryLabel}</h2>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>

@@ -30,7 +30,9 @@ function formatDateShort(iso: string): string {
 
 function formatDateFull(iso: string): string {
   const d = new Date(iso);
-  return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "long", year: "numeric" }).format(d);
+  const weekday = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(d);
+  const rest = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "long", year: "numeric" }).format(d);
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)}, ${rest}`;
 }
 
 export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√±a", ptLabel = "Portugal" }: Props) {
@@ -73,6 +75,12 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√
 
   const gridLines = 4;
   const gridValues = Array.from({ length: gridLines + 1 }, (_, i) => (maxV * 1.15 * i) / gridLines);
+
+  const tickCount = Math.min(6, allDates.length);
+  const xAxisTicks =
+    allDates.length <= 1
+      ? [0]
+      : Array.from(new Set(Array.from({ length: tickCount }, (_, i) => Math.round((i * (allDates.length - 1)) / (tickCount - 1)))));
 
   const hoverDate = hoverIdx !== null ? allDates[hoverIdx] : null;
   const hoverEs = hoverDate ? esSeries.find((p) => p.date === hoverDate) : undefined;
@@ -185,16 +193,25 @@ export default function TrendChart({ title, esSeries, ptSeries, esLabel = "Espa√
           {hoverEs && <circle cx={xScale(hoverEs.date)} cy={yScale(hoverEs.value)} r={4} fill="var(--series-es)" />}
           {hoverPt && <circle cx={xScale(hoverPt.date)} cy={yScale(hoverPt.value)} r={4} fill="var(--series-pt)" />}
 
-          {allDates.length > 0 && (
-            <>
-              <text x={PAD_LEFT} y={HEIGHT - 8} fontSize={10} fill="var(--text-muted)">
-                {formatDateShort(allDates[0])}
-              </text>
-              <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 8} fontSize={10} fill="var(--text-muted)" textAnchor="end">
-                {formatDateShort(allDates[allDates.length - 1])}
-              </text>
-            </>
-          )}
+          {xAxisTicks.map((idx) => {
+            const d = allDates[idx];
+            const isFirst = idx === 0;
+            const isLast = idx === allDates.length - 1;
+            return (
+              <g key={idx}>
+                <line x1={xScale(d)} x2={xScale(d)} y1={HEIGHT - PAD_BOTTOM} y2={HEIGHT - PAD_BOTTOM + 4} stroke="var(--baseline)" strokeWidth={1} />
+                <text
+                  x={xScale(d)}
+                  y={HEIGHT - 8}
+                  fontSize={10}
+                  fill="var(--text-muted)"
+                  textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+                >
+                  {formatDateShort(d)}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       ) : (
         <div style={{ maxHeight: 220, overflowY: "auto" }}>

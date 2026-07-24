@@ -38,6 +38,8 @@ export type AdsBreakdown = {
   clicksSeries: SeriesPoint[];
 };
 
+export type ContentType = "Reel" | "Vídeo" | "Imagen" | "Carrusel";
+
 export type ContentItem = {
   id: string;
   network: NetworkKey;
@@ -45,10 +47,11 @@ export type ContentItem = {
   url: string;
   image: string | null;
   date: string;
-  type: string;
-  reach: number;
+  type: ContentType;
+  reach: number | null;
+  views: number;
   interactions: number;
-  engagementRate: number;
+  engagementRate: number | null;
 };
 
 const METRIC_FIELD: Record<NetworkKey, { followers: string; reach: string; interactions: string; posts: string }> = {
@@ -63,20 +66,21 @@ const SECONDARY_METRIC: Record<NetworkKey, { label: string; metric: string; subj
 
 const BRAND_ID: Record<CountryKey, number> = { es: 5991450, pt: 5991465 };
 
-const IG_TYPE_LABEL: Record<string, string> = {
+// Reels are NOT returned by the regular posts endpoints (/v2/analytics/posts/*) —
+// confirmed by comparing IDs: zero overlap between /posts and /reels over a
+// 2-month window. They live exclusively under /v2/analytics/reels/*, with their
+// own type marker, so both must be fetched and merged for a complete, correctly
+// typed content list.
+const IG_TYPE_LABEL: Record<string, ContentType> = {
   FEED_IMAGE: "Imagen",
   FEED_CAROUSEL_ALBUM: "Carrusel",
   FEED_VIDEO: "Vídeo",
-  REEL: "Reel",
 };
 
-const FB_TYPE_LABEL: Record<string, string> = {
+const FB_TYPE_LABEL: Record<string, ContentType> = {
   photo: "Imagen",
-  video: "Vídeo",
-  reel: "Reel",
-  link: "Enlace",
-  status: "Texto",
   album: "Carrusel",
+  video: "Vídeo",
 };
 
 class MissingCredentialsError extends Error {
@@ -262,6 +266,17 @@ type IgPost = {
   publishedAt?: { dateTime: string };
   reach: number;
   interactions: number;
+  views?: number;
+};
+
+type IgReel = {
+  reelId: string;
+  url: string;
+  imageUrl?: string;
+  publishedAt?: { dateTime: string };
+  reach: number;
+  interactions: number;
+  views: number;
 };
 
 type FbPost = {
@@ -275,47 +290,98 @@ type FbPost = {
   reactions: number;
   comments: number;
   shares: number;
+  videoViews?: number;
+};
+
+type FbReel = {
+  reelId: string;
+  reelUrl: string;
+  thumbnailUrl?: string;
+  created?: { dateTime: string };
+  blueReelsPlayCount: number;
+  postVideoReactions: number;
+  postVideoSocialActions: number;
 };
 
 export async function fetchTopPosts(country: CountryKey, from: string, to: string): Promise<ContentItem[]> {
   const blogId = BRAND_ID[country];
 
-  const [igRes, fbRes] = await Promise.all([
+  const [igPostsRes, igReelsRes, fbPostsRes, fbReelsRes] = await Promise.all([
     metricoolGet<{ data: IgPost[] }>("/v2/analytics/posts/instagram", { from, to, blogId: String(blogId) }),
+    metricoolGet<{ data: IgReel[] }>("/v2/analytics/reels/instagram", { from, to, blogId: String(blogId) }),
     metricoolGet<{ data: FbPost[] }>("/v2/analytics/posts/facebook", { from, to, blogId: String(blogId) }),
+    metricoolGet<{ data: FbReel[] }>("/v2/analytics/reels/facebook", { from, to, blogId: String(blogId) }),
   ]);
 
-  const igItems: ContentItem[] = (igRes.data ?? []).map((p) => ({
-    id: p.postId,
+  const igPostItems: ContentItem[] = (igPostsRes.data ?? [])
+    .filter((p) => IG_TYPE_LABEL[p.type])
+    .map((p) => ({
+      id: p.postId,
+      network: "instagram",
+      country,
+      url: p.url,
+      image: p.imageUrl ?? null,
+      date: p.publishedAt?.dateTime ?? "",
+      type: IG_TYPE_LABEL[p.type],
+      reach: p.reach ?? 0,
+      views: p.views ?? p.reach ?? 0,
+      interactions: p.interactions ?? 0,
+      engagementRate: p.reach > 0 ? (p.interactions / p.reach) * 100 : 0,
+    }));
+
+  const igReelItems: ContentItem[] = (igReelsRes.data ?? []).map((r) => ({
+    id: r.reelId,
     network: "instagram",
     country,
-    url: p.url,
-    image: p.imageUrl ?? null,
-    date: p.publishedAt?.dateTime ?? "",
-    type: IG_TYPE_LABEL[p.type] ?? p.type,
-    reach: p.reach ?? 0,
-    interactions: p.interactions ?? 0,
-    engagementRate: p.reach > 0 ? (p.interactions / p.reach) * 100 : 0,
+    url: r.url,
+    image: r.imageUrl ?? null,
+    date: r.publishedAt?.dateTime ?? "",
+    type: "Reel",
+    reach: r.reach ?? 0,
+    views: r.views ?? 0,
+    interactions: r.interactions ?? 0,
+    engagementRate: r.reach > 0 ? (r.interactions / r.reach) * 100 : 0,
   }));
 
-  const fbItems: ContentItem[] = (fbRes.data ?? []).map((p) => {
-    const interactions = (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0);
-    const reach = p.impressionsUnique ?? 0;
-    return {
-      id: p.postId,
-      network: "facebook",
-      country,
-      url: p.link,
-      image: p.picture ?? null,
-      date: p.created?.dateTime ?? (p.timestamp ? new Date(p.timestamp).toISOString() : ""),
-      type: FB_TYPE_LABEL[p.type] ?? p.type,
-      reach,
-      interactions,
-      engagementRate: reach > 0 ? (interactions / reach) * 100 : 0,
-    };
-  });
+  const fbPostItems: ContentItem[] = (fbPostsRes.data ?? [])
+    .filter((p) => FB_TYPE_LABEL[p.type])
+    .map((p) => {
+      const interactions = (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0);
+      const reach = p.impressionsUnique ?? 0;
+      return {
+        id: p.postId,
+        network: "facebook",
+        country,
+        url: p.link,
+        image: p.picture ?? null,
+        date: p.created?.dateTime ?? (p.timestamp ? new Date(p.timestamp).toISOString() : ""),
+        type: FB_TYPE_LABEL[p.type],
+        reach,
+        views: p.videoViews ?? reach,
+        interactions,
+        engagementRate: reach > 0 ? (interactions / reach) * 100 : 0,
+      };
+    });
 
-  return [...igItems, ...fbItems];
+  // Facebook's reels endpoint never returns a usable reach figure (confirmed
+  // 0 across every reel sampled) — reach and engagement rate are left null
+  // rather than forced to 0, so the UI can show "no disponible" instead of
+  // a fabricated last place.
+  const fbReelItems: ContentItem[] = (fbReelsRes.data ?? []).map((r) => ({
+    id: r.reelId,
+    network: "facebook",
+    country,
+    url: r.reelUrl,
+    image: r.thumbnailUrl ?? null,
+    date: r.created?.dateTime ?? "",
+    type: "Reel",
+    reach: null,
+    views: r.blueReelsPlayCount ?? 0,
+    interactions: (r.postVideoReactions ?? 0) + (r.postVideoSocialActions ?? 0),
+    engagementRate: null,
+  }));
+
+  return [...igPostItems, ...igReelItems, ...fbPostItems, ...fbReelItems];
 }
 
 export { MissingCredentialsError, BRAND_ID };
