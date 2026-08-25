@@ -12,7 +12,22 @@ import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import ContentIntelligence from "@/components/ContentIntelligence";
 import Logo from "@/components/Logo";
-import type { NetworkSnapshot, AdsBreakdown as AdsBreakdownType, ContentItem, ContentType, SeriesPoint, PeriodSummary } from "@/lib/metricool";
+import YoutubeTopCards from "@/components/YoutubeTopCards";
+import YoutubeTopContent from "@/components/YoutubeTopContent";
+import YoutubeFormatComparison from "@/components/YoutubeFormatComparison";
+import YoutubeBestTimes, { type RankedStat } from "@/components/YoutubeBestTimes";
+import type {
+  NetworkSnapshot,
+  AdsBreakdown as AdsBreakdownType,
+  ContentItem,
+  ContentType,
+  SeriesPoint,
+  PeriodSummary,
+  YoutubeChannelSnapshot,
+  YoutubePeriodSummary,
+  YoutubeVideoItem,
+} from "@/lib/metricool";
+import { analyzeContent, type AnalyzableContent } from "@/lib/contentAnalysis";
 
 type ApiResponse = {
   generatedAt: string;
@@ -23,12 +38,15 @@ type ApiResponse = {
   pt: { label: string; instagram: NetworkSnapshot; facebook: NetworkSnapshot };
   ads: AdsBreakdownType;
   posts: ContentItem[];
+  youtube: YoutubeChannelSnapshot;
+  youtubePatterns: { videos: YoutubeVideoItem[]; from: string; to: string; windowDays: number };
   previousPeriod: {
     from: string;
     to: string;
     es: { instagram: PeriodSummary; facebook: PeriodSummary };
     pt: { instagram: PeriodSummary; facebook: PeriodSummary };
     ads: AdsBreakdownType;
+    youtube: YoutubePeriodSummary;
   };
 };
 
@@ -45,6 +63,55 @@ const EVOLUTION_METRICS: { key: EvolutionMetric; label: (reachLabel: string) => 
   { key: "interactions", label: () => "Interacciones" },
   { key: "engagement", label: () => "Tasa de interacción" },
 ];
+
+type YoutubeEvolutionMetric = "subscribers" | "views" | "interactions" | "watchTime";
+const YOUTUBE_EVOLUTION_METRICS: { key: YoutubeEvolutionMetric; label: string }[] = [
+  { key: "subscribers", label: "Suscriptores" },
+  { key: "views", label: "Visualizaciones" },
+  { key: "interactions", label: "Interacciones" },
+  { key: "watchTime", label: "Tiempo de visualización" },
+];
+
+const WEEKDAY_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+const DAYPARTS = [
+  { label: "00–06h", start: 0, end: 6 },
+  { label: "06–12h", start: 6, end: 12 },
+  { label: "12–15h", start: 12, end: 15 },
+  { label: "15–19h", start: 15, end: 19 },
+  { label: "19–24h", start: 19, end: 24 },
+];
+
+// A bucket only counts as real signal with at least this many publications
+// behind it — kept in sync with YoutubeBestTimes' own threshold so the
+// insight banner never claims a pattern the section itself won't show.
+const MIN_COUNT_PER_BUCKET = 3;
+
+function computeDayStats(videos: YoutubeVideoItem[]): RankedStat[] {
+  const buckets = WEEKDAY_FULL.map((label) => ({ label, sum: 0, count: 0 }));
+  videos.forEach((v) => {
+    if (!v.date) return;
+    const idx = (new Date(v.date).getDay() + 6) % 7;
+    buckets[idx].sum += v.interactions;
+    buckets[idx].count += 1;
+  });
+  return buckets.map((b) => ({ label: b.label, avg: b.count > 0 ? b.sum / b.count : 0, count: b.count }));
+}
+
+function computeHourStats(videos: YoutubeVideoItem[]): RankedStat[] {
+  const buckets = DAYPARTS.map((d) => ({ ...d, sum: 0, count: 0 }));
+  videos.forEach((v) => {
+    if (!v.date || v.date.length < 13) return;
+    const hour = parseInt(v.date.slice(11, 13), 10);
+    if (Number.isNaN(hour)) return;
+    const bucket = buckets.find((b) => hour >= b.start && hour < b.end);
+    if (bucket) {
+      bucket.sum += v.interactions;
+      bucket.count += 1;
+    }
+  });
+  return buckets.map((b) => ({ label: b.label, avg: b.count > 0 ? b.sum / b.count : 0, count: b.count }));
+}
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
@@ -84,6 +151,43 @@ function buildCsv(data: ApiResponse, platform: "instagram" | "facebook", reachLa
     ["CTR Portugal (%)", data.ads.pt.ctr.toFixed(2)],
     ["CPC España (€)", data.ads.es.cpc.toFixed(2)],
     ["CPC Portugal (€)", data.ads.pt.cpc.toFixed(2)],
+  ];
+  return rows.map((r) => r.join(";")).join("\n");
+}
+
+function buildYoutubeCsv(data: ApiResponse): string {
+  const yt = data.youtube;
+  const interactions = yt.likes + yt.comments + yt.shares;
+  const rows: string[][] = [
+    ["Métrica", "Valor"],
+    ["Suscriptores", yt.subscribers !== null ? String(yt.subscribers) : "no disponible"],
+    ["Suscriptores ganados (periodo)", yt.subscribersDelta !== null ? String(yt.subscribersDelta) : "no disponible"],
+    ["Visualizaciones", String(yt.views)],
+    ["Tiempo de visualización (min)", yt.watchMinutes.toFixed(1)],
+    ["Likes", String(yt.likes)],
+    ["Comentarios", String(yt.comments)],
+    ["Shares", String(yt.shares)],
+    ["Interacciones (likes+comentarios+shares)", String(interactions)],
+    ["Publicaciones", String(yt.videosPublished)],
+    ["Shorts publicados", String(yt.shortsPublished)],
+    ["Formato largo publicados", String(yt.longFormPublished)],
+    [],
+    ["Top Contenidos"],
+    ["Título", "Formato", "Fecha", "Visualizaciones", "Likes", "Comentarios", "Tiempo de visualización (min)", "Engagement (%)", "URL"],
+    ...[...yt.videos]
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 20)
+      .map((v) => [
+        v.title.replace(/;/g, ","),
+        v.format === "short" ? "Short" : "Formato largo",
+        v.date ? v.date.slice(0, 10) : "",
+        String(v.views),
+        String(v.likes),
+        String(v.comments),
+        v.watchMinutes.toFixed(1),
+        v.engagementRate !== null ? v.engagementRate.toFixed(1) : "no disponible",
+        v.url,
+      ]),
   ];
   return rows.map((r) => r.join(";")).join("\n");
 }
@@ -210,6 +314,174 @@ function buildInsightCandidates(data: ApiResponse, platform: "instagram" | "face
   return candidates;
 }
 
+// YouTube equivalent of buildInsightCandidates, built on YouTube's own KPIs.
+// "Lo más relevante" is meant to surface learnings and opportunities, not
+// restate what the ▲/▼ chips on the cards above already show — so growth is
+// only a candidate here when it's genuinely positive. A decline is never
+// hidden (the KPI cards always show the real ▼), it's just not repeated as
+// a headline "insight" on its own.
+//
+// Weights carry a large per-category offset so the five categories sort in
+// priority order (content → format → theme → patterns → growth) by default;
+// the offsets are far enough apart that only a genuinely dramatic signal in
+// a lower category can outrank a weaker one in a higher category.
+const YT_TIER = { content: 1000, format: 800, theme: 600, pattern: 400, growth: 200 };
+
+function buildYoutubeInsightCandidates(data: ApiResponse, analyzable: AnalyzableContent[], dayStats: RankedStat[]): InsightCandidate[] {
+  const yt = data.youtube;
+  const prev = data.previousPeriod.youtube;
+  const candidates: InsightCandidate[] = [];
+
+  // 1. Content — the top performer(s) of the period.
+  const withViews = yt.videos.filter((v) => v.views > 0);
+  if (withViews.length >= 2) {
+    const byViews = [...withViews].sort((a, b) => b.views - a.views);
+    const topViews = byViews[0];
+    const runnerUpViews = byViews[1];
+    const withEngagement = yt.videos.filter((v) => v.engagementRate !== null);
+    const topEngagement = withEngagement.length > 0 ? withEngagement.reduce((a, v) => ((v.engagementRate as number) > (a.engagementRate as number) ? v : a)) : null;
+
+    const sameVideo = topEngagement && topEngagement.id === topViews.id;
+    const viewsLeadPct = runnerUpViews.views > 0 ? ((topViews.views - runnerUpViews.views) / runnerUpViews.views) * 100 : 100;
+
+    candidates.push({
+      text:
+        `"${topViews.title}" fue el vídeo más visto del periodo con ${formatNumber(topViews.views)} visualizaciones` +
+        (sameVideo && topEngagement
+          ? ` y además obtuvo el mayor engagement, con un ${(topEngagement.engagementRate as number).toFixed(1)}%.`
+          : "."),
+      weight: YT_TIER.content + 50 + Math.min(200, viewsLeadPct),
+    });
+
+    if (!sameVideo && topEngagement && withEngagement.length >= 3) {
+      const mean = withEngagement.reduce((a, v) => a + (v.engagementRate as number), 0) / withEngagement.length;
+      if (mean > 0 && (topEngagement.engagementRate as number) > mean * 1.5) {
+        candidates.push({
+          text: `"${topEngagement.title}" (${topEngagement.format === "short" ? "Short" : "Formato largo"}) tuvo el mayor engagement del periodo, con un ${(
+            topEngagement.engagementRate as number
+          ).toFixed(1)}%, frente al ${mean.toFixed(1)}% de media.`,
+          weight: YT_TIER.content + (((topEngagement.engagementRate as number) - mean) / mean) * 30,
+        });
+      }
+    }
+  }
+
+  // 2. Format — Shorts vs. long-form, normalized per publication.
+  const shorts = yt.videos.filter((v) => v.format === "short");
+  const longForm = yt.videos.filter((v) => v.format === "video");
+  if (shorts.length >= 2 && longForm.length >= 2) {
+    const shortsViews = shorts.reduce((a, v) => a + v.views, 0) / shorts.length;
+    const longViews = longForm.reduce((a, v) => a + v.views, 0) / longForm.length;
+    const ratio = longViews > 0 ? shortsViews / longViews : 0;
+    const hedge = shorts.length >= 3 && longForm.length >= 3 ? "" : ", aunque la muestra todavía es limitada";
+    if (ratio >= 1.4) {
+      candidates.push({
+        text: `Los Shorts generan ${ratio.toFixed(1)}× más visualizaciones por publicación que los vídeos de formato largo este periodo${hedge}.`,
+        weight: YT_TIER.format + ratio * 10,
+      });
+    } else if (ratio > 0 && ratio <= 0.72) {
+      candidates.push({
+        text: `Los vídeos de formato largo generan ${(1 / ratio).toFixed(1)}× más visualizaciones por publicación que los Shorts este periodo${hedge}.`,
+        weight: YT_TIER.format + (1 / ratio) * 10,
+      });
+    }
+
+    const shortsEng = shorts.map((v) => v.engagementRate).filter((v): v is number => v !== null);
+    const longEng = longForm.map((v) => v.engagementRate).filter((v): v is number => v !== null);
+    if (shortsEng.length > 0 && longEng.length > 0) {
+      const shortsAvg = shortsEng.reduce((a, b) => a + b, 0) / shortsEng.length;
+      const longAvg = longEng.reduce((a, b) => a + b, 0) / longEng.length;
+      if (longAvg > shortsAvg * 1.2) {
+        candidates.push({
+          text: `El formato largo registra un ${longAvg.toFixed(1)}% de engagement medio frente al ${shortsAvg.toFixed(
+            1
+          )}% de los Shorts este periodo${hedge}.`,
+          weight: YT_TIER.format + ((longAvg - shortsAvg) / shortsAvg) * 20,
+        });
+      } else if (shortsAvg > longAvg * 1.2) {
+        candidates.push({
+          text: `Los Shorts registran un ${shortsAvg.toFixed(1)}% de engagement medio frente al ${longAvg.toFixed(
+            1
+          )}% del formato largo este periodo${hedge}.`,
+          weight: YT_TIER.format + ((shortsAvg - longAvg) / longAvg) * 20,
+        });
+      }
+    }
+  }
+
+  // 3. Theme — reuses the same producto/técnica engine as Instagram/Facebook.
+  const analysis = analyzeContent(analyzable);
+  const topGroup = analysis.standouts[0] ?? analysis.mostMentioned;
+  if (topGroup) {
+    const subject = topGroup.kind === "técnica" ? topGroup.name : `"${topGroup.name}"`;
+    const isStandout = analysis.standouts.length > 0;
+    candidates.push({
+      text: isStandout
+        ? `Los contenidos relacionados con ${subject} obtuvieron un ${topGroup.avgEngagement.toFixed(
+            1
+          )}% de engagement medio, por encima del ${analysis.periodMeanEngagement.toFixed(1)}% del canal.`
+        : `${subject} es el tema con más presencia este periodo (${topGroup.count} vídeos), aunque sin destacar aún claramente en engagement.`,
+      weight: YT_TIER.theme + (isStandout ? (topGroup.avgEngagement / Math.max(0.1, analysis.periodMeanEngagement)) * 20 : 5),
+    });
+  }
+
+  // 4. Patterns — best day of the week, normalized per publication. Uses the
+  // fixed 90-day sample (dayStats), not the selected period, so the wording
+  // deliberately says "dentro del histórico analizado" rather than "este periodo".
+  const qualifyingDays = dayStats.filter((d) => d.count >= MIN_COUNT_PER_BUCKET);
+  if (qualifyingDays.length >= 2) {
+    const sorted = [...qualifyingDays].sort((a, b) => b.avg - a.avg);
+    const leader = sorted[0];
+    const runnerUp = sorted[1];
+    if (runnerUp.avg > 0) {
+      const gapPct = ((leader.avg - runnerUp.avg) / runnerUp.avg) * 100;
+      if (gapPct >= 15) {
+        candidates.push({
+          text: `El ${leader.label.toLowerCase()} presenta el mayor nivel de interacción media por publicación dentro del histórico analizado, un ${gapPct.toFixed(
+            0
+          )}% por encima del resto de días.`,
+          weight: YT_TIER.pattern + gapPct * 0.5,
+        });
+      }
+    }
+  }
+
+  // 5. Growth — positive signals only; a decline is never hidden (the KPI
+  // cards above always show the real ▼), just not restated here as a
+  // headline "learning" on its own.
+  if (yt.subscribersDelta !== null && prev.subscribersGained !== null && yt.subscribersDelta > 0) {
+    const change = pctChange(yt.subscribersDelta, prev.subscribersGained);
+    if (change >= 15) {
+      candidates.push({
+        text: `El canal ganó ${formatNumber(yt.subscribersDelta)} suscriptores este periodo, un ${change.toFixed(
+          0
+        )}% más que en el periodo anterior (${formatNumber(prev.subscribersGained)}).`,
+        weight: YT_TIER.growth + change,
+      });
+    }
+  }
+
+  const viewsChange = pctChange(yt.views, prev.views);
+  if (yt.views > 0 && prev.views > 0 && viewsChange >= 15) {
+    candidates.push({
+      text: `El canal generó ${formatNumber(yt.views)} visualizaciones durante los últimos ${data.days} días, un ${viewsChange.toFixed(
+        0
+      )}% más que en el periodo anterior.`,
+      weight: YT_TIER.growth + viewsChange * 0.9,
+    });
+  }
+
+  const watchChange = pctChange(yt.watchMinutes, prev.watchMinutes);
+  if (yt.watchMinutes > 0 && prev.watchMinutes > 0 && watchChange >= 20) {
+    candidates.push({
+      text: `El tiempo de visualización creció un ${watchChange.toFixed(0)}% respecto al periodo anterior.`,
+      weight: YT_TIER.growth + watchChange * 0.7,
+    });
+  }
+
+  return candidates;
+}
+
 // Ranks candidates by how much they actually stand out this period and keeps
 // the top ones — every candidate here is already a positive signal, so this
 // is a pure "what mattered most" ranking, not a balance of good vs. bad news.
@@ -221,9 +493,10 @@ function selectInsights(candidates: InsightCandidate[], max = 5): string[] {
 }
 
 export default function Page() {
-  const [platform, setPlatform] = useState<"instagram" | "facebook">("instagram");
+  const [platform, setPlatform] = useState<"instagram" | "facebook" | "youtube">("instagram");
   const [days, setDays] = useState(30);
   const [evolutionMetric, setEvolutionMetric] = useState<EvolutionMetric>("followers");
+  const [youtubeEvolutionMetric, setYoutubeEvolutionMetric] = useState<YoutubeEvolutionMetric>("subscribers");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -257,7 +530,7 @@ export default function Page() {
 
   const exportCsv = () => {
     if (!data) return;
-    const csv = buildCsv(data, platform, reachLabel);
+    const csv = platform === "youtube" ? buildYoutubeCsv(data) : buildCsv(data, platform, reachLabel);
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -267,10 +540,31 @@ export default function Page() {
     URL.revokeObjectURL(url);
   };
 
-  const insights = useMemo(() => (data ? selectInsights(buildInsightCandidates(data, platform)) : []), [data, platform]);
+  const youtubeAnalyzable: AnalyzableContent[] = useMemo(() => {
+    if (!data) return [];
+    return data.youtube.videos.map((v) => ({
+      id: v.id,
+      content: `${v.title} ${v.description}`,
+      engagementRate: v.engagementRate,
+      interactions: v.interactions,
+    }));
+  }, [data]);
+
+  // Deliberately independent of the 7/30/90 selector — always a fixed 90-day
+  // (or shorter, if the channel is younger) sample from the API, so finding
+  // "best day to publish" doesn't go empty just because the viewer is
+  // looking at last week.
+  const youtubeDayStats = useMemo(() => (data ? computeDayStats(data.youtubePatterns.videos) : []), [data]);
+  const youtubeHourStats = useMemo(() => (data ? computeHourStats(data.youtubePatterns.videos) : []), [data]);
+
+  const insights = useMemo(() => {
+    if (!data) return [];
+    if (platform === "youtube") return selectInsights(buildYoutubeInsightCandidates(data, youtubeAnalyzable, youtubeDayStats));
+    return selectInsights(buildInsightCandidates(data, platform));
+  }, [data, platform, youtubeAnalyzable, youtubeDayStats]);
 
   const weekdayData = useMemo(() => {
-    if (!data) return { es: new Array(7).fill(0), pt: new Array(7).fill(0) };
+    if (!data || platform === "youtube") return { es: new Array(7).fill(0), pt: new Array(7).fill(0) };
     const es = new Array(7).fill(0);
     const pt = new Array(7).fill(0);
     data.posts
@@ -284,7 +578,7 @@ export default function Page() {
   }, [data, platform]);
 
   const contentTypeData = useMemo(() => {
-    if (!data) return { types: [] as string[], es: [] as number[], pt: [] as number[] };
+    if (!data || platform === "youtube") return { types: [] as string[], es: [] as number[], pt: [] as number[] };
     const map = new Map<string, { es: number[]; pt: number[] }>();
     data.posts
       .filter((p) => p.network === platform && p.engagementRate !== null)
@@ -303,11 +597,26 @@ export default function Page() {
     };
   }, [data, platform]);
 
-  const combinedFollowers = data ? data.es[platform].followers + data.pt[platform].followers : null;
-  const combinedReach = data ? data.es[platform].reach + data.pt[platform].reach : null;
-  const combinedInteractions = data ? data.es[platform].interactions + data.pt[platform].interactions : null;
+  const combinedFollowers = data && platform !== "youtube" ? data.es[platform].followers + data.pt[platform].followers : null;
+  const combinedReach = data && platform !== "youtube" ? data.es[platform].reach + data.pt[platform].reach : null;
+  const combinedInteractions = data && platform !== "youtube" ? data.es[platform].interactions + data.pt[platform].interactions : null;
 
-  const platformPosts = data ? data.posts.filter((p) => p.network === platform) : [];
+  const platformPosts = data && platform !== "youtube" ? data.posts.filter((p) => p.network === platform) : [];
+
+  function dailySeriesFromVideos(videos: ApiResponse["youtube"]["videos"], pick: (v: ApiResponse["youtube"]["videos"][number]) => number): SeriesPoint[] {
+    const map = new Map<string, number>();
+    videos.forEach((v) => {
+      if (!v.date) return;
+      const day = v.date.slice(0, 10);
+      map.set(day, (map.get(day) ?? 0) + pick(v));
+    });
+    return Array.from(map.entries())
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const youtubeDailyInteractions = useMemo(() => (data ? dailySeriesFromVideos(data.youtube.videos, (v) => v.interactions) : []), [data]);
+  const youtubeDailyWatchMinutes = useMemo(() => (data ? dailySeriesFromVideos(data.youtube.videos, (v) => v.watchMinutes) : []), [data]);
 
   return (
     <main style={{ maxWidth: 1120, margin: "0 auto", padding: "28px 20px 64px" }}>
@@ -338,15 +647,15 @@ export default function Page() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 4 }}>
-          {(["instagram", "facebook"] as const).map((p) => (
-            <button key={p} onClick={() => setPlatform(p)} style={tabStyle(platform === p)}>
-              {p === "instagram" ? "Instagram" : "Facebook"}
+          {(["instagram", "facebook", "youtube"] as const).map((p) => (
+            <button key={p} onClick={() => setPlatform(p)} style={tabStyle(platform === p, platformAccentVar(p))}>
+              {p === "instagram" ? "Instagram" : p === "facebook" ? "Facebook" : "YouTube"}
             </button>
           ))}
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           {DAY_OPTIONS.map((d) => (
-            <button key={d} onClick={() => setDays(d)} style={tabStyle(days === d)}>
+            <button key={d} onClick={() => setDays(d)} style={tabStyle(days === d, platformAccentVar(platform))}>
               {d} días
             </button>
           ))}
@@ -367,7 +676,7 @@ export default function Page() {
         </div>
       )}
 
-      {data && (
+      {data && platform !== "youtube" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <InsightBanner insights={insights} periodLabel={formatPeriodRange(data.from, data.to, data.days)} />
 
@@ -413,7 +722,7 @@ export default function Page() {
 
           <div>
             <SectionLabel>Contenido</SectionLabel>
-            <TopContent items={platformPosts} />
+            <TopContent items={platformPosts} accentVar={platform === "facebook" ? "--brand-facebook" : "--brand-instagram"} />
           </div>
 
           <div>
@@ -423,9 +732,9 @@ export default function Page() {
 
           <div>
             <SectionLabel>Evolución diaria</SectionLabel>
-            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
               {EVOLUTION_METRICS.map((m) => (
-                <button key={m.key} onClick={() => setEvolutionMetric(m.key)} style={tabStyle(evolutionMetric === m.key)}>
+                <button key={m.key} onClick={() => setEvolutionMetric(m.key)} style={tabStyle(evolutionMetric === m.key, platformAccentVar(platform))}>
                   {m.label(reachLabel)}
                 </button>
               ))}
@@ -484,6 +793,103 @@ export default function Page() {
         </div>
       )}
 
+      {data && platform === "youtube" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <InsightBanner insights={insights} periodLabel={formatPeriodRange(data.from, data.to, data.days)} />
+
+          <div>
+            <SectionLabel>YouTube · Shimano Iberia</SectionLabel>
+            <YoutubeTopCards
+              subscribers={data.youtube.subscribers}
+              subscribersDelta={data.youtube.subscribersDelta}
+              subscribersGainedPrev={data.previousPeriod.youtube.subscribersGained}
+              subscribersSince={data.youtube.subscribersSince}
+              views={data.youtube.views}
+              viewsPrev={data.previousPeriod.youtube.views}
+              watchMinutes={data.youtube.watchMinutes}
+              watchMinutesPrev={data.previousPeriod.youtube.watchMinutes}
+              interactions={data.youtube.likes + data.youtube.comments + data.youtube.shares}
+              interactionsPrev={data.previousPeriod.youtube.likes + data.previousPeriod.youtube.comments + data.previousPeriod.youtube.shares}
+            />
+          </div>
+
+          <div>
+            <SectionLabel>Contenido</SectionLabel>
+            <YoutubeTopContent items={data.youtube.videos} />
+          </div>
+
+          <div>
+            <SectionLabel>Formato</SectionLabel>
+            <YoutubeFormatComparison videos={data.youtube.videos} />
+          </div>
+
+          <div>
+            <SectionLabel>Producto y técnica</SectionLabel>
+            <ContentIntelligence items={youtubeAnalyzable} />
+          </div>
+
+          <div>
+            <SectionLabel>Evolución diaria</SectionLabel>
+            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+              {YOUTUBE_EVOLUTION_METRICS.map((m) => (
+                <button key={m.key} onClick={() => setYoutubeEvolutionMetric(m.key)} style={tabStyle(youtubeEvolutionMetric === m.key, "--brand-youtube")}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {youtubeEvolutionMetric === "subscribers" && (
+              <AreaChart
+                title="Suscriptores"
+                infoTip={
+                  data.youtube.subscribersSince
+                    ? `Histórico diario disponible desde el ${new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "long" }).format(
+                        new Date(data.youtube.subscribersSince)
+                      )}.`
+                    : "Todavía no hay suficiente histórico diario de suscriptores."
+                }
+                esSeries={data.youtube.subscribersSeries}
+                esLabel="Suscriptores"
+                esColorVar="--series-yt"
+              />
+            )}
+            {youtubeEvolutionMetric === "views" && (
+              <AreaChart
+                title="Visualizaciones"
+                infoTip="Visualizaciones diarias de todo el canal, no solo de los vídeos publicados en el periodo."
+                esSeries={data.youtube.viewsSeries}
+                esLabel="Visualizaciones"
+                esColorVar="--series-yt"
+              />
+            )}
+            {youtubeEvolutionMetric === "interactions" && (
+              <AreaChart
+                title="Interacciones por fecha de publicación"
+                infoTip="Likes, comentarios y compartidos acumulados hasta hoy, agrupados por el día de publicación de cada vídeo."
+                esSeries={youtubeDailyInteractions}
+                esLabel="Interacciones"
+                esColorVar="--series-yt"
+              />
+            )}
+            {youtubeEvolutionMetric === "watchTime" && (
+              <AreaChart
+                title="Tiempo de visualización por fecha de publicación"
+                infoTip="Minutos vistos acumulados hasta hoy, agrupados por el día de publicación de cada vídeo."
+                esSeries={youtubeDailyWatchMinutes}
+                esLabel="Minutos"
+                esColorVar="--series-yt"
+              />
+            )}
+          </div>
+
+          <YoutubeBestTimes
+            dayStats={youtubeDayStats}
+            hourStats={youtubeHourStats}
+            totalVideos={data.youtubePatterns.videos.length}
+            windowDays={data.youtubePatterns.windowDays}
+          />
+        </div>
+      )}
+
       {!data && !error && loading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Cargando datos…</p>}
     </main>
   );
@@ -502,13 +908,22 @@ function TotalStat({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function tabStyle(active: boolean): CSSProperties {
+// Each platform's own identity color, used only for contained UI chrome
+// (active tab, active selector/pill, small badges) — never for chart data,
+// which stays on the categorical --series-* tokens.
+function platformAccentVar(platform: "instagram" | "facebook" | "youtube"): string {
+  if (platform === "instagram") return "--brand-instagram";
+  if (platform === "youtube") return "--brand-youtube";
+  return "--brand-facebook";
+}
+
+function tabStyle(active: boolean, accentVar: string = "--series-es"): CSSProperties {
   return {
     fontSize: 13,
     padding: "6px 14px",
     borderRadius: 8,
     border: "1px solid var(--border)",
-    background: active ? "var(--series-es)" : "var(--surface-1)",
+    background: active ? `var(${accentVar})` : "var(--surface-1)",
     color: active ? "#fff" : "var(--text-secondary)",
     cursor: "pointer",
     fontWeight: active ? 600 : 400,

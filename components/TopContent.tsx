@@ -6,6 +6,7 @@ import type { ContentItem, ContentType } from "@/lib/metricool";
 
 type Props = {
   items: ContentItem[];
+  accentVar?: "--brand-instagram" | "--brand-facebook";
 };
 
 type SortKey = "interactions" | "reach" | "engagementRate" | "views";
@@ -23,6 +24,25 @@ const TYPE_STYLE: Record<ContentType, { bg: string; fg: string; icon: "play" | "
   Carrusel: { bg: "#eda100", fg: "#1a1200", icon: "stack" },
   Imagen: { bg: "#6b7280", fg: "#ffffff", icon: "square" },
 };
+
+// The source CDN occasionally 503s on a valid image URL (upstream outage,
+// not a missing thumbnail) — onError swaps to the same fallback used when
+// there's genuinely no image, instead of leaving a blank box.
+function Thumb({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div style={noImageStyle}>
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+          <circle cx="13" cy="13" r="12.5" stroke="currentColor" strokeOpacity="0.35" />
+          <path d="M10.5 8.5 L18 13 L10.5 17.5 Z" fill="currentColor" fillOpacity="0.55" />
+        </svg>
+      </div>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" style={thumbStyle} onError={() => setFailed(true)} />;
+}
 
 function TypeIcon({ icon }: { icon: "play" | "stack" | "square" }) {
   if (icon === "play") {
@@ -56,7 +76,7 @@ function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" }).format(new Date(iso));
 }
 
-export default function TopContent({ items }: Props) {
+export default function TopContent({ items, accentVar = "--brand-instagram" }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("interactions");
 
   const hasUnreliableReach = useMemo(() => items.some((i) => i.reach === null), [items]);
@@ -91,7 +111,7 @@ export default function TopContent({ items }: Props) {
         <h3 style={titleStyle}>Top Contenidos</h3>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {SORT_OPTIONS.map((opt) => (
-            <button key={opt.key} onClick={() => setSortKey(opt.key)} style={pillStyle(sortKey === opt.key)}>
+            <button key={opt.key} onClick={() => setSortKey(opt.key)} style={pillStyle(sortKey === opt.key, accentVar)}>
               {opt.label}
             </button>
           ))}
@@ -111,12 +131,7 @@ export default function TopContent({ items }: Props) {
           return (
             <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" style={cardLinkStyle}>
               <div style={thumbWrapStyle}>
-                {item.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image} alt="" style={thumbStyle} />
-                ) : (
-                  <div style={noImageStyle}>sin imagen</div>
-                )}
+                <Thumb src={item.image} />
                 <span style={{ ...typeBadgeStyle, background: typeStyle.bg, color: typeStyle.fg }}>
                   <TypeIcon icon={typeStyle.icon} />
                   {item.type}
@@ -158,13 +173,13 @@ export default function TopContent({ items }: Props) {
   );
 }
 
-function pillStyle(active: boolean): CSSProperties {
+function pillStyle(active: boolean, accentVar: string): CSSProperties {
   return {
     fontSize: 11,
     padding: "4px 10px",
     borderRadius: 999,
     border: "1px solid var(--border)",
-    background: active ? "var(--series-es)" : "var(--surface-1)",
+    background: active ? `var(${accentVar})` : "var(--surface-1)",
     color: active ? "#fff" : "var(--text-secondary)",
     cursor: "pointer",
     fontWeight: active ? 600 : 400,
@@ -246,8 +261,8 @@ const noImageStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: 11,
   color: "var(--text-muted)",
+  background: "linear-gradient(135deg, var(--gridline), var(--surface-1))",
 };
 
 const typeBadgeStyle: CSSProperties = {

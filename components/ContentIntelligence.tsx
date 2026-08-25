@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import type { ContentItem } from "@/lib/metricool";
-import { analyzeContent, type ContentGroupResult } from "@/lib/contentAnalysis";
+import { analyzeContent, type AnalyzableContent, type ContentGroupResult } from "@/lib/contentAnalysis";
 
-type Props = { items: ContentItem[] };
+type Props = { items: AnalyzableContent[] };
 
 function formatPct(n: number): string {
   return `${n.toFixed(1)}%`;

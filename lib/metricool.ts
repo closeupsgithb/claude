@@ -429,4 +429,247 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
   return [...igPostItems, ...igReelItems, ...fbPostItems, ...fbReelItems];
 }
 
+// ---------------------------------------------------------------------------
+// YouTube — Shimano Iberia
+//
+// Shimano runs a single YouTube channel that serves both España and Portugal;
+// Metricool has it connected under the España brand profile only. It must
+// never be split into an ES/PT pair or attributed solely to Spain — see
+// YOUTUBE_BRAND_ID below.
+// ---------------------------------------------------------------------------
+
+// The channel is Iberia-wide but Metricool only exposes the connection under
+// the España brand profile — there is no separate Portugal YouTube connector
+// to merge or duplicate. Reusing BRAND_ID.es here is intentional, not a
+// placeholder.
+const YOUTUBE_BRAND_ID = BRAND_ID.es;
+
+export type YoutubeVideoFormat = "short" | "video";
+
+export type YoutubeVideoItem = {
+  id: string;
+  url: string;
+  thumbnail: string | null;
+  title: string;
+  description: string;
+  date: string;
+  format: YoutubeVideoFormat;
+  durationSeconds: number | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchMinutes: number;
+  averageViewDuration: number | null;
+  engagedViews: number | null;
+  interactions: number;
+  engagementRate: number | null;
+};
+
+export type YoutubeChannelSnapshot = {
+  subscribers: number | null;
+  subscribersDelta: number | null;
+  subscribersSeries: SeriesPoint[];
+  subscribersSince: string | null;
+  views: number;
+  viewsSeries: SeriesPoint[];
+  viewsSince: string | null;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchMinutes: number;
+  videosPublished: number;
+  shortsPublished: number;
+  longFormPublished: number;
+  videos: YoutubeVideoItem[];
+};
+
+export type YoutubePeriodSummary = {
+  subscribersGained: number | null;
+  views: number;
+  watchMinutes: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  engagementRate: number;
+};
+
+type YoutubeApiVideo = {
+  videoId: string;
+  thumbnailUrl?: string;
+  watchUrl: string;
+  title?: string;
+  description?: string;
+  publishedAt?: { dateTime: string };
+  views?: number;
+  engagedViews?: number;
+  watchMinutes?: number;
+  averageViewDuration?: number;
+  likes?: number;
+  dislikes?: number;
+  comments?: number;
+  shares?: number;
+  durationSeconds?: number;
+  videoType?: string;
+};
+
+// Confirmed live against Metricool on 2026-08-25 for this exact brand — the
+// single richest YouTube source available: real titles, bilingual
+// descriptions, thumbnails, duration and an explicit videoType ("SHORT" vs.
+// everything else), so Shorts/long-form is a real classification, not a
+// heuristic. No separate reels/shorts/videos endpoint exists for YouTube —
+// this one path returns everything.
+async function fetchYoutubeApiVideos(from: string, to: string): Promise<YoutubeApiVideo[]> {
+  const res = await metricoolGet<{ data: YoutubeApiVideo[] }>("/v2/analytics/posts/youtube", {
+    from,
+    to,
+    blogId: String(YOUTUBE_BRAND_ID),
+  });
+  return res.data ?? [];
+}
+
+// /v2/analytics/posts/youtube does not return only videos published in
+// [from, to] — confirmed live: a 30-day window returned videos published as
+// far back as 2024, each carrying that period's accrued views/watch time/
+// likes for that older upload (evergreen content still getting traffic).
+// That's a legitimate signal on its own, but this app's "Top Contenidos",
+// Shorts-vs-Vídeos comparison and per-day evolution all mean "content
+// published this period" (matching the brief and the equivalent IG/FB
+// sections), so results are filtered down to videos actually published
+// inside the requested window before anything else touches them.
+function isPublishedInRange(dateIso: string, from: string, to: string): boolean {
+  if (!dateIso) return false;
+  const t = new Date(dateIso).getTime();
+  return t >= new Date(from).getTime() && t <= new Date(to).getTime();
+}
+
+export async function fetchYoutubeVideos(from: string, to: string): Promise<YoutubeVideoItem[]> {
+  const raw = (await fetchYoutubeApiVideos(from, to)).filter((v) => isPublishedInRange(v.publishedAt?.dateTime ?? "", from, to));
+  return raw.map((v) => {
+    const views = v.views ?? 0;
+    const interactions = (v.likes ?? 0) + (v.comments ?? 0) + (v.shares ?? 0);
+    return {
+      id: v.videoId,
+      url: v.watchUrl,
+      thumbnail: v.thumbnailUrl ?? null,
+      title: v.title?.trim() || "Sin título",
+      description: v.description ?? "",
+      date: v.publishedAt?.dateTime ?? "",
+      format: v.videoType === "SHORT" ? "short" : "video",
+      durationSeconds: v.durationSeconds ?? null,
+      views,
+      likes: v.likes ?? 0,
+      comments: v.comments ?? 0,
+      shares: v.shares ?? 0,
+      watchMinutes: v.watchMinutes ?? 0,
+      averageViewDuration: v.averageViewDuration ?? null,
+      engagedViews: v.engagedViews ?? null,
+      interactions,
+      engagementRate: views > 0 ? (interactions / views) * 100 : null,
+    };
+  });
+}
+
+// The exact REST field name Metricool uses for the channel's daily
+// subscriber count could not be confirmed directly (the preview
+// environment's SSO protection blocked the diagnostic probe used to verify
+// every other YouTube field in this file). Metricool's own analytics engine,
+// queried live for this brand, confirms the series genuinely exists — this
+// is purely a "which string does the REST API call it" gap. "videoViews"
+// below (VIEWS_METRIC_CANDIDATES) WAS confirmed this way, which is why the
+// two lists don't need to name the same convention.
+//
+// Rather than guess wrong and silently show 0, every plausible name is
+// requested in parallel (cheap — a handful of small concurrent GETs, no
+// added latency since they race) and the first one to return real rows
+// wins. Flagged for a one-time manual check against Metricool → Settings →
+// API to confirm which candidate actually matched and drop the rest.
+const SUBSCRIBER_METRIC_CANDIDATES = [
+  "subscribers",
+  "Subscribers",
+  "followers",
+  "Followers",
+  "subscriberCount",
+  "totalSubscribers",
+  "channelSubscribers",
+  "subscribersCount",
+  "totalFollowers",
+];
+const VIEWS_METRIC_CANDIDATES = ["videoViews", "views", "channelViews"];
+
+async function fetchYoutubeTimelineResilient(candidates: string[], from: string, to: string): Promise<SeriesPoint[]> {
+  const attempts = await Promise.allSettled(
+    candidates.map((metric) => fetchTimeline({ network: "youtube", metric, from, to, blogId: YOUTUBE_BRAND_ID }))
+  );
+  for (const result of attempts) {
+    if (result.status === "fulfilled" && result.value.length > 0) return result.value;
+  }
+  return [];
+}
+
+export async function fetchYoutubeChannelSnapshot(from: string, to: string): Promise<YoutubeChannelSnapshot> {
+  const [subscribersSeries, viewsSeries, videos] = await Promise.all([
+    fetchYoutubeTimelineResilient(SUBSCRIBER_METRIC_CANDIDATES, from, to),
+    fetchYoutubeTimelineResilient(VIEWS_METRIC_CANDIDATES, from, to),
+    fetchYoutubeVideos(from, to),
+  ]);
+
+  const subscribers = subscribersSeries.length > 0 ? subscribersSeries[subscribersSeries.length - 1].value : null;
+  const subscribersStart = subscribersSeries.length > 0 ? subscribersSeries[0].value : null;
+  const subscribersDelta = subscribers !== null && subscribersStart !== null ? subscribers - subscribersStart : null;
+
+  const likes = videos.reduce((a, v) => a + v.likes, 0);
+  const comments = videos.reduce((a, v) => a + v.comments, 0);
+  const shares = videos.reduce((a, v) => a + v.shares, 0);
+  const watchMinutes = videos.reduce((a, v) => a + v.watchMinutes, 0);
+  const shortsPublished = videos.filter((v) => v.format === "short").length;
+
+  return {
+    subscribers,
+    subscribersDelta,
+    subscribersSeries,
+    subscribersSince: subscribersSeries[0]?.date ?? null,
+    views: sum(viewsSeries),
+    viewsSeries,
+    viewsSince: viewsSeries[0]?.date ?? null,
+    likes,
+    comments,
+    shares,
+    watchMinutes,
+    videosPublished: videos.length,
+    shortsPublished,
+    longFormPublished: videos.length - shortsPublished,
+    videos,
+  };
+}
+
+// Lighter than fetchYoutubeChannelSnapshot — only what's needed to compare
+// one period against the immediately preceding one of equal length.
+export async function fetchYoutubePeriodSummary(from: string, to: string): Promise<YoutubePeriodSummary> {
+  const [subscribersSeries, viewsSeries, videos] = await Promise.all([
+    fetchYoutubeTimelineResilient(SUBSCRIBER_METRIC_CANDIDATES, from, to),
+    fetchYoutubeTimelineResilient(VIEWS_METRIC_CANDIDATES, from, to),
+    fetchYoutubeVideos(from, to),
+  ]);
+
+  const subsStart = subscribersSeries.length > 0 ? subscribersSeries[0].value : null;
+  const subsEnd = subscribersSeries.length > 0 ? subscribersSeries[subscribersSeries.length - 1].value : null;
+  const likes = videos.reduce((a, v) => a + v.likes, 0);
+  const comments = videos.reduce((a, v) => a + v.comments, 0);
+  const shares = videos.reduce((a, v) => a + v.shares, 0);
+  const watchMinutes = videos.reduce((a, v) => a + v.watchMinutes, 0);
+  const views = sum(viewsSeries);
+  const interactions = likes + comments + shares;
+
+  return {
+    subscribersGained: subsStart !== null && subsEnd !== null ? subsEnd - subsStart : null,
+    views,
+    watchMinutes,
+    likes,
+    comments,
+    shares,
+    engagementRate: views > 0 ? (interactions / views) * 100 : 0,
+  };
+}
+
 export { MissingCredentialsError, BRAND_ID };

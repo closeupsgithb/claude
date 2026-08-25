@@ -10,12 +10,21 @@
   --border: rgba(11, 11, 11, 0.1);
   --success: #006300;
 
-  /* categorical slots — Shimano brand blue (España) / Shimano brand green (Portugal), validated with dataviz palette checker */
+  /* categorical slots — Shimano brand blue (España) / Shimano brand green (Portugal) / amber (YouTube data), validated with dataviz palette checker */
   --series-es: #0098d8;
   --series-pt: #7dc242;
+  --series-yt: #a3590a;
   --series-other: #898781;
   --card-shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 4px 12px rgba(11, 11, 11, 0.05);
   --decline: #d03b3b;
+
+  /* Platform identity colors — contained use only (active tab, selected
+     metric pill, small badges/indicators). Never used to encode chart data
+     or performance direction; that stays on --success/--decline on every
+     platform, including these three. */
+  --brand-instagram: #e1306c;
+  --brand-facebook: #0098d8;
+  --brand-youtube: #d91f26;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,9 +42,14 @@
 
     --series-es: #1b8fc4;
     --series-pt: #5c9c34;
+    --series-yt: #c2811a;
     --series-other: #898781;
     --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
     --decline: #e66767;
+
+    --brand-instagram: #e0468a;
+    --brand-facebook: #1b8fc4;
+    --brand-youtube: #f0403d;
   }
 }
 
@@ -53,9 +67,14 @@
 
   --series-es: #1b8fc4;
   --series-pt: #5c9c34;
+  --series-yt: #c2811a;
   --series-other: #898781;
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
   --decline: #e66767;
+
+  --brand-instagram: #e0468a;
+  --brand-facebook: #1b8fc4;
+  --brand-youtube: #f0403d;
 }
 
 * {
@@ -77,4 +96,71 @@ body {
 
 button {
   font-family: inherit;
+}
+
+/* Info tooltip — small "i" trigger with a hover/focus bubble. Keeps
+   secondary explanations out of the permanent layout (see InfoTip.tsx). */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.info-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--baseline);
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  cursor: default;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.info-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  background: var(--text-primary);
+  color: var(--page-plane);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 7px 10px;
+  border-radius: 7px;
+  box-shadow: var(--card-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+  z-index: 20;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.info-tip-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--text-primary);
+}
+
+.info-tip:hover .info-tip-bubble,
+.info-tip:focus-within .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
 }

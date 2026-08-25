@@ -1,4 +1,12 @@
-import type { ContentItem } from "@/lib/metricool";
+// Structural subset of AnalyzableContent (and of YoutubeVideoItem, once mapped) —
+// this file only ever reads these four fields, so any platform's content can
+// be analyzed as long as it can produce this shape.
+export type AnalyzableContent = {
+  id: string;
+  content: string;
+  engagementRate: number | null;
+  interactions: number;
+};
 
 export type ContentGroupKind = "producto" | "técnica";
 
@@ -54,7 +62,7 @@ function extractHashtags(text: string): string[] {
 // words after "Shimano" so that, e.g., "Aero Technium Competition 420CX" and
 // "Aero Technium MGS 14000 XSD" both collapse to the shared family "Aero
 // Technium" instead of being treated as two unrelated model names.
-function extractConfirmedProductFamilies(items: ContentItem[]): Map<string, { display: string; ids: Set<string> }> {
+function extractConfirmedProductFamilies(items: AnalyzableContent[]): Map<string, { display: string; ids: Set<string> }> {
   const families = new Map<string, { display: string; ids: Set<string> }>();
   const wordPattern = /(?:[A-ZÀ-Ý][a-zà-ÿ]+|[A-Z]{2,5})/;
   const regex = new RegExp(`Shimano\\s+(${wordPattern.source})(?:\\s+(${wordPattern.source}))?`, "g");
@@ -77,7 +85,7 @@ function extractConfirmedProductFamilies(items: ContentItem[]): Map<string, { di
   return families;
 }
 
-export function analyzeContent(items: ContentItem[]): ContentAnalysis {
+export function analyzeContent(items: AnalyzableContent[]): ContentAnalysis {
   const withText = items.filter((i) => i.content);
   const confirmedFamilies = extractConfirmedProductFamilies(withText);
 
@@ -118,7 +126,7 @@ export function analyzeContent(items: ContentItem[]): ContentAnalysis {
   function toGroupResult(name: string, kind: ContentGroupKind, ids: Set<string>): ContentGroupResult | null {
     const groupItems = Array.from(ids)
       .map((id) => itemById.get(id))
-      .filter((i): i is ContentItem => !!i);
+      .filter((i): i is AnalyzableContent => !!i);
     const engagements = groupItems.map((i) => i.engagementRate).filter((v): v is number => v !== null);
     if (engagements.length === 0) return null;
     return {

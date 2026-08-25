@@ -3,14 +3,17 @@
 import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SeriesPoint } from "@/lib/metricool";
+import InfoTip from "@/components/InfoTip";
 
 type Props = {
   title: string;
   subtitle?: string;
+  infoTip?: string;
   esSeries: SeriesPoint[];
-  ptSeries: SeriesPoint[];
+  ptSeries?: SeriesPoint[];
   esLabel?: string;
   ptLabel?: string;
+  esColorVar?: "--series-es" | "--series-pt" | "--series-yt";
 };
 
 const WIDTH = 720;
@@ -40,10 +43,20 @@ function seriesPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
 }
 
-export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel = "España", ptLabel = "Portugal" }: Props) {
+export default function AreaChart({
+  title,
+  subtitle,
+  infoTip,
+  esSeries,
+  ptSeries = [],
+  esLabel = "España",
+  ptLabel = "Portugal",
+  esColorVar = "--series-es",
+}: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const gradId = useId();
+  const hasSecondSeries = ptSeries.length > 0;
 
   const allDates = useMemo(() => {
     const set = new Set<string>();
@@ -101,11 +114,14 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
     <div style={cardStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>{title}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <h3 style={titleStyle}>{title}</h3>
+            {infoTip && <InfoTip text={infoTip} />}
+          </div>
           {subtitle && <p style={subtitleStyle}>{subtitle}</p>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>
-          <Legend esLabel={esLabel} ptLabel={ptLabel} />
+          {hasSecondSeries && <Legend esLabel={esLabel} ptLabel={ptLabel} esColorVar={esColorVar} />}
           <button onClick={() => setShowTable((s) => !s)} style={toggleButtonStyle}>
             {showTable ? "Ver gráfico" : "Ver tabla"}
           </button>
@@ -137,8 +153,8 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
         >
           <defs>
             <linearGradient id={`${gradId}-es`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--series-es)" stopOpacity="0.32" />
-              <stop offset="100%" stopColor="var(--series-es)" stopOpacity="0.02" />
+              <stop offset="0%" stopColor={`var(${esColorVar})`} stopOpacity="0.32" />
+              <stop offset="100%" stopColor={`var(${esColorVar})`} stopOpacity="0.02" />
             </linearGradient>
             <linearGradient id={`${gradId}-pt`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--series-pt)" stopOpacity="0.32" />
@@ -157,21 +173,23 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
 
           {/* Independent (non-stacked) fills so each country's own shape and magnitude stay readable */}
           <path d={esAreaPath} fill={`url(#${gradId}-es)`} stroke="none" />
-          <path d={ptAreaPath} fill={`url(#${gradId}-pt)`} stroke="none" />
-          <path d={seriesPath(esPoints)} fill="none" stroke="var(--series-es)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
-          <path d={seriesPath(ptPoints)} fill="none" stroke="var(--series-pt)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+          {hasSecondSeries && <path d={ptAreaPath} fill={`url(#${gradId}-pt)`} stroke="none" />}
+          <path d={seriesPath(esPoints)} fill="none" stroke={`var(${esColorVar})`} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+          {hasSecondSeries && (
+            <path d={seriesPath(ptPoints)} fill="none" stroke="var(--series-pt)" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+          )}
 
           <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={baseline} y2={baseline} stroke="var(--baseline)" strokeWidth={1} />
 
           {esPeak && esPeak.value > 0 && (
             <g>
-              <circle cx={xScale(esPeak.date)} cy={yScale(esPeak.value)} r={3.5} fill="var(--surface-1)" stroke="var(--series-es)" strokeWidth={2} />
-              <text x={xScale(esPeak.date)} y={yScale(esPeak.value) - 8} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--series-es)">
+              <circle cx={xScale(esPeak.date)} cy={yScale(esPeak.value)} r={3.5} fill="var(--surface-1)" stroke={`var(${esColorVar})`} strokeWidth={2} />
+              <text x={xScale(esPeak.date)} y={yScale(esPeak.value) - 8} textAnchor="middle" fontSize={9.5} fontWeight={700} fill={`var(${esColorVar})`}>
                 pico {formatNumber(esPeak.value)}
               </text>
             </g>
           )}
-          {ptPeak && ptPeak.value > 0 && ptPeak.date !== esPeak?.date && (
+          {hasSecondSeries && ptPeak && ptPeak.value > 0 && ptPeak.date !== esPeak?.date && (
             <g>
               <circle cx={xScale(ptPeak.date)} cy={yScale(ptPeak.value)} r={3.5} fill="var(--surface-1)" stroke="var(--series-pt)" strokeWidth={2} />
               <text x={xScale(ptPeak.date)} y={yScale(ptPeak.value) - 8} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--series-pt)">
@@ -184,9 +202,9 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
             <line x1={xScale(hoverDate)} x2={xScale(hoverDate)} y1={PAD_TOP} y2={baseline} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="3,3" />
           )}
           {hoverDate && esByDate.has(hoverDate) && (
-            <circle cx={xScale(hoverDate)} cy={yScale(esByDate.get(hoverDate)!)} r={4} fill="var(--series-es)" stroke="var(--surface-1)" strokeWidth={1.5} />
+            <circle cx={xScale(hoverDate)} cy={yScale(esByDate.get(hoverDate)!)} r={4} fill={`var(${esColorVar})`} stroke="var(--surface-1)" strokeWidth={1.5} />
           )}
-          {hoverDate && ptByDate.has(hoverDate) && (
+          {hasSecondSeries && hoverDate && ptByDate.has(hoverDate) && (
             <circle cx={xScale(hoverDate)} cy={yScale(ptByDate.get(hoverDate)!)} r={4} fill="var(--series-pt)" stroke="var(--surface-1)" strokeWidth={1.5} />
           )}
 
@@ -211,7 +229,7 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
               <tr>
                 <th style={thStyle}>Fecha</th>
                 <th style={thStyle}>{esLabel}</th>
-                <th style={thStyle}>{ptLabel}</th>
+                {hasSecondSeries && <th style={thStyle}>{ptLabel}</th>}
               </tr>
             </thead>
             <tbody>
@@ -222,7 +240,7 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
                   <tr key={d}>
                     <td style={tdStyle}>{formatDateShort(d)}</td>
                     <td style={tdStyle}>{esByDate.has(d) ? formatNumber(esByDate.get(d)!) : "–"}</td>
-                    <td style={tdStyle}>{ptByDate.has(d) ? formatNumber(ptByDate.get(d)!) : "–"}</td>
+                    {hasSecondSeries && <td style={tdStyle}>{ptByDate.has(d) ? formatNumber(ptByDate.get(d)!) : "–"}</td>}
                   </tr>
                 ))}
             </tbody>
@@ -232,19 +250,24 @@ export default function AreaChart({ title, subtitle, esSeries, ptSeries, esLabel
 
       {hoverDate && !showTable && (
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-          {formatDateFull(hoverDate)} — {esLabel}: <strong>{esByDate.has(hoverDate) ? formatNumber(esByDate.get(hoverDate)!) : "sin dato"}</strong> ·{" "}
-          {ptLabel}: <strong>{ptByDate.has(hoverDate) ? formatNumber(ptByDate.get(hoverDate)!) : "sin dato"}</strong>
+          {formatDateFull(hoverDate)} — {esLabel}: <strong>{esByDate.has(hoverDate) ? formatNumber(esByDate.get(hoverDate)!) : "sin dato"}</strong>
+          {hasSecondSeries && (
+            <>
+              {" "}
+              · {ptLabel}: <strong>{ptByDate.has(hoverDate) ? formatNumber(ptByDate.get(hoverDate)!) : "sin dato"}</strong>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function Legend({ esLabel, ptLabel }: { esLabel: string; ptLabel: string }) {
+function Legend({ esLabel, ptLabel, esColorVar = "--series-es" }: { esLabel: string; ptLabel: string; esColorVar?: string }) {
   return (
     <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-secondary)" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--series-es)", display: "inline-block" }} />
+        <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(${esColorVar})`, display: "inline-block" }} />
         {esLabel}
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
