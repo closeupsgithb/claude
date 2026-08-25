@@ -52,13 +52,20 @@ export async function GET(request: Request) {
   const params = { from: fromIso, to: toIso, blogId: String(BRAND_ID_ES) };
 
   const candidates = [
-    "/v2/analytics/posts/youtube",
-    "/v2/analytics/reels/youtube",
-    "/v2/analytics/videos/youtube",
-    "/v2/analytics/shorts/youtube",
+    "/v2/analytics/countries/youtube",
+    "/v2/analytics/demographics/youtube",
   ];
 
-  const results = await Promise.all(candidates.map((p) => tryEndpoint(p, params)));
+  const timelineMetricCandidates = ["subscribers", "videoViews", "views", "gained", "lost", "engagement", "likes"];
 
-  return NextResponse.json({ from: fromIso, to: toIso, results });
+  const [results, timelineResults] = await Promise.all([
+    Promise.all(candidates.map((p) => tryEndpoint(p, { ...params, network: "youtube" }))),
+    Promise.all(
+      timelineMetricCandidates.map((metric) =>
+        tryEndpoint("/v2/analytics/timelines", { ...params, network: "youtube", metric, subject: "account" })
+      )
+    ),
+  ]);
+
+  return NextResponse.json({ from: fromIso, to: toIso, results, timelineResults });
 }
