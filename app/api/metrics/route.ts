@@ -6,6 +6,7 @@ import {
   fetchTopPosts,
   fetchYoutubeChannelSnapshot,
   fetchYoutubePeriodSummary,
+  fetchYoutubeVideos,
   MissingCredentialsError,
   BRAND_ID,
 } from "@/lib/metricool";
@@ -38,6 +39,15 @@ export async function GET(request: Request) {
   const prevFromIso = toMetricoolIso(prevFrom);
   const prevToIso = toMetricoolIso(prevTo);
 
+  // "Mejores momentos para publicar" needs a stable sample to find real
+  // day/hour patterns, so it deliberately ignores the 7/30/90 selector and
+  // always looks at a fixed 90-day window (or less, if the channel doesn't
+  // have that much history — fetchYoutubeVideos naturally returns whatever
+  // falls inside the window, nothing fabricated for the gap).
+  const PATTERN_WINDOW_DAYS = 90;
+  const patternFrom = new Date(to.getTime() - PATTERN_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const patternFromIso = toMetricoolIso(patternFrom);
+
   try {
     const [
       esInstagram,
@@ -54,6 +64,7 @@ export async function GET(request: Request) {
       prevAds,
       youtube,
       prevYoutube,
+      youtubePatternVideos,
     ] = await Promise.all([
       fetchNetworkSnapshot("instagram", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.es.id, fromIso, toIso),
@@ -69,6 +80,7 @@ export async function GET(request: Request) {
       fetchAdsBreakdown(prevFromIso, prevToIso),
       fetchYoutubeChannelSnapshot(fromIso, toIso),
       fetchYoutubePeriodSummary(prevFromIso, prevToIso),
+      fetchYoutubeVideos(patternFromIso, toIso),
     ]);
 
     return NextResponse.json({
@@ -81,6 +93,12 @@ export async function GET(request: Request) {
       ads,
       posts: [...esPosts, ...ptPosts],
       youtube,
+      youtubePatterns: {
+        videos: youtubePatternVideos,
+        from: patternFromIso,
+        to: toIso,
+        windowDays: PATTERN_WINDOW_DAYS,
+      },
       previousPeriod: {
         from: prevFromIso,
         to: prevToIso,

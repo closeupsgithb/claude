@@ -9,6 +9,7 @@ type Props = {
   views: number;
   viewsPrev: number;
   watchMinutes: number;
+  watchMinutesPrev: number;
   interactions: number;
   interactionsPrev: number;
 };
@@ -89,6 +90,7 @@ export default function YoutubeTopCards({
   views,
   viewsPrev,
   watchMinutes,
+  watchMinutesPrev,
   interactions,
   interactionsPrev,
 }: Props) {
@@ -105,22 +107,31 @@ export default function YoutubeTopCards({
         boxShadow: "var(--card-shadow)",
       }}
     >
-      <Stat label="Suscriptores" value={subscribers !== null ? formatNumber(subscribers) : "–"} deltaLine={subscribersDelta ? `(${formatSigned(subscribersDelta)})` : undefined}>
+      <Stat
+        label="Suscriptores"
+        tip="El valor entre paréntesis indica los suscriptores netos ganados durante el periodo seleccionado. La variación compara ese crecimiento con el periodo anterior."
+        value={subscribers !== null ? formatNumber(subscribers) : "–"}
+        deltaLine={subscribersDelta ? `(${formatSigned(subscribersDelta)})` : undefined}
+      >
         <ChangeChip current={subscribersDelta} previous={subscribersGainedPrev} since={subscribersSince} />
       </Stat>
-      <Stat label="Visualizaciones" value={formatNumber(views)}>
+      <Stat
+        label="Visualizaciones"
+        tip="Visualizaciones de todo el canal durante el periodo seleccionado (cualquier vídeo, no solo los publicados en el periodo)."
+        value={formatNumber(views)}
+      >
         <ChangeChip current={views} previous={viewsPrev} />
       </Stat>
       <Stat
         label="Tiempo de visualización"
-        tip="Tiempo total que los usuarios han dedicado a ver contenidos del canal durante el periodo seleccionado."
+        tip="Tiempo total acumulado por los vídeos publicados durante el periodo seleccionado — a diferencia de Visualizaciones, no incluye el consumo de vídeos publicados antes del periodo."
         value={formatWatchTime(watchMinutes)}
       >
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>&nbsp;</span>
+        <ChangeChip current={watchMinutes} previous={watchMinutesPrev} />
       </Stat>
       <Stat
         label="Interacciones"
-        tip="Suma de likes, comentarios y compartidos de los vídeos publicados en el periodo."
+        tip="Likes, comentarios y compartidos de los vídeos publicados durante el periodo seleccionado."
         value={formatNumber(interactions)}
       >
         <ChangeChip current={interactions} previous={interactionsPrev} />

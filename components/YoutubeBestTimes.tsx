@@ -7,15 +7,16 @@ type Props = {
   dayStats: RankedStat[];
   hourStats: RankedStat[];
   totalVideos: number;
+  windowDays: number;
 };
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
 }
 
-// A day/slot only counts as real signal with at least 2 publications behind
+// A day/slot only counts as real signal with at least 3 publications behind
 // it — a single outlier video shouldn't read as "the best day to post."
-const MIN_COUNT_PER_BUCKET = 2;
+const MIN_COUNT_PER_BUCKET = 3;
 const MIN_BUCKETS_WITH_SIGNAL = 2;
 
 function RankedBars({ stats }: { stats: RankedStat[] }) {
@@ -30,7 +31,9 @@ function RankedBars({ stats }: { stats: RankedStat[] }) {
           <div style={{ flex: 1, height: 10, borderRadius: 4, background: "var(--gridline)", overflow: "hidden" }}>
             <div style={{ width: `${Math.max(3, (s.avg / max) * 100)}%`, height: "100%", background: "var(--series-yt)", borderRadius: 4 }} />
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", minWidth: 44, textAlign: "right" }}>{formatNumber(s.avg)}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", minWidth: 70, textAlign: "right" }}>
+            {formatNumber(s.avg)} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>/ publ.</span>
+          </span>
         </div>
       ))}
     </div>
@@ -57,9 +60,10 @@ function Panel({ title, stats, subject }: { title: string; stats: RankedStat[]; 
 
   return (
     <div style={{ flex: "1 1 300px", minWidth: 260 }}>
-      <h4 style={{ margin: "0 0 10px", fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <h4 style={{ margin: "0 0 2px", fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {title}
       </h4>
+      <p style={{ margin: "0 0 10px", fontSize: 11, color: "var(--text-muted)" }}>Interacciones medias por publicación</p>
       {usableCount >= MIN_BUCKETS_WITH_SIGNAL ? (
         <>
           <RankedBars stats={stats} />
@@ -72,21 +76,24 @@ function Panel({ title, stats, subject }: { title: string; stats: RankedStat[]; 
   );
 }
 
-export default function YoutubeBestTimes({ dayStats, hourStats, totalVideos }: Props) {
+export default function YoutubeBestTimes({ dayStats, hourStats, totalVideos, windowDays }: Props) {
   if (totalVideos === 0) {
     return (
       <div style={cardStyle}>
         <h3 style={titleStyle}>Mejores momentos para publicar</h3>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>Sin publicaciones en este periodo.</p>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>Todavía no hay histórico de publicaciones suficiente.</p>
       </div>
     );
   }
 
   return (
     <div style={cardStyle}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
-        <h3 style={titleStyle}>Mejores momentos para publicar</h3>
-        <InfoTip text="Interacción media por publicación (no el total) — para que un solo día muy activo no distorsione la comparación." />
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <h3 style={titleStyle}>Mejores momentos para publicar</h3>
+          <InfoTip text="Interacción media por publicación (no el total) — para que un solo día muy activo no distorsione la comparación. Usa una ventana fija para tener muestra suficiente, independiente del periodo seleccionado arriba." />
+        </div>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Basado en los últimos {windowDays} días</span>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
         <Panel title="Por día de la semana" stats={dayStats} subject="día" />

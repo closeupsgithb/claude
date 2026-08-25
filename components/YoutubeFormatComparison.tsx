@@ -91,17 +91,17 @@ function buildConclusion(shorts: FormatStats | null, videos: FormatStats | null)
 
   if (viewsRatio >= 1.4 && engagementGapPct >= 15) {
     return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación, pero los ${
-      engagementLeaderIsVideo ? "vídeos tradicionales" : "Shorts"
+      engagementLeaderIsVideo ? "vídeos de formato largo" : "Shorts"
     } obtienen más engagement por publicación este periodo${hedge}.`;
   }
   if (viewsRatio >= 1.4) {
-    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación que los vídeos tradicionales este periodo${hedge}.`;
+    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación que los vídeos de formato largo este periodo${hedge}.`;
   }
   if (viewsRatio > 0 && viewsRatio <= 0.72) {
-    return `Los vídeos tradicionales generan ${formatDecimal(1 / viewsRatio)}× más visualizaciones por publicación que los Shorts este periodo${hedge}.`;
+    return `Los vídeos de formato largo generan ${formatDecimal(1 / viewsRatio)}× más visualizaciones por publicación que los Shorts este periodo${hedge}.`;
   }
   if (engagementGapPct >= 20) {
-    return `Los ${engagementLeaderIsVideo ? "vídeos tradicionales" : "Shorts"} están obteniendo más engagement por publicación este periodo${hedge}.`;
+    return `Los ${engagementLeaderIsVideo ? "vídeos de formato largo" : "Shorts"} están obteniendo más engagement por publicación este periodo${hedge}.`;
   }
   return "Sin diferencia relevante entre formatos este periodo.";
 }
@@ -124,13 +124,13 @@ export default function YoutubeFormatComparison({ videos }: Props) {
   return (
     <div style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-        <h3 style={titleStyle}>Shorts vs. Vídeos</h3>
+        <h3 style={titleStyle}>Shorts vs. Formato largo</h3>
         <InfoTip text="Métricas medias por publicación, para comparar formatos con distinto volumen." />
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 14 }}>
         <FormatCard title="Shorts" colorVar="--series-yt" stats={shortsStats} />
-        <FormatCard title="Vídeos" colorVar="--series-es" stats={videosStats} />
+        <FormatCard title="Formato largo" colorVar="--series-es" stats={videosStats} />
       </div>
 
       <p style={conclusionStyle}>{buildConclusion(shortsStats, videosStats)}</p>

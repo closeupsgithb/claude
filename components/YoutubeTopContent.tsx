@@ -52,14 +52,39 @@ function VideoIcon() {
   );
 }
 
-// YouTube's thumbnail CDN occasionally 503s on a valid URL (an upstream
-// outage, not a missing thumbnail) — onError swaps to the same fallback
-// used when there's genuinely no thumbnail, instead of a blank box.
-function Thumb({ src }: { src: string | null }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) return <div style={noImageStyle}>sin imagen</div>;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" style={thumbStyle} onError={() => setFailed(true)} />;
+// Metricool's own thumbnail URL occasionally 503s (an upstream CDN outage on
+// its signed i9.ytimg.com host, not a missing thumbnail). Rather than show a
+// blank box, fall through a chain of sources: Metricool's URL first (it may
+// be a better crop), then YouTube's own standard, unsigned thumbnail
+// endpoints by video ID — the same ones youtube.com itself uses — trying
+// resolutions from best to most-guaranteed-to-exist. Only if every source
+// fails does the elegant placeholder show.
+function thumbnailCandidates(videoId: string, metricoolUrl: string | null): string[] {
+  const standard = ["maxresdefault", "sddefault", "hqdefault", "mqdefault", "default"].map(
+    (variant) => `https://i.ytimg.com/vi/${videoId}/${variant}.jpg`
+  );
+  return metricoolUrl ? [metricoolUrl, ...standard] : standard;
+}
+
+function Thumb({ videoId, src }: { videoId: string; src: string | null }) {
+  const candidates = thumbnailCandidates(videoId, src);
+  const [attempt, setAttempt] = useState(0);
+
+  if (attempt >= candidates.length) {
+    return (
+      <div style={placeholderStyle}>
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+          <circle cx="13" cy="13" r="12.5" stroke="currentColor" strokeOpacity="0.35" />
+          <path d="M10.5 8.5 L18 13 L10.5 17.5 Z" fill="currentColor" fillOpacity="0.55" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img key={attempt} src={candidates[attempt]} alt="" style={thumbStyle} onError={() => setAttempt((a) => a + 1)} />
+  );
 }
 
 export default function YoutubeTopContent({ items }: Props) {
@@ -120,7 +145,7 @@ export default function YoutubeTopContent({ items }: Props) {
           return (
             <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" style={cardLinkStyle} title={item.title}>
               <div style={thumbWrapStyle}>
-                <Thumb src={item.thumbnail} />
+                <Thumb videoId={item.id} src={item.thumbnail} />
                 <span style={{ ...rankBadgeStyle }}>#{i + 1}</span>
                 <span style={{ ...formatBadgeStyle, background: item.format === "short" ? "var(--brand-youtube)" : "rgba(11,11,11,0.72)" }}>
                   {item.format === "short" ? <ShortIcon /> : <VideoIcon />}
@@ -162,7 +187,7 @@ function pillStyle(active: boolean): CSSProperties {
     padding: "4px 10px",
     borderRadius: 999,
     border: "1px solid var(--border)",
-    background: active ? "var(--series-yt)" : "var(--surface-1)",
+    background: active ? "var(--brand-youtube)" : "var(--surface-1)",
     color: active ? "#fff" : "var(--text-secondary)",
     cursor: "pointer",
     fontWeight: active ? 600 : 400,
@@ -223,14 +248,14 @@ const thumbStyle: CSSProperties = {
   display: "block",
 };
 
-const noImageStyle: CSSProperties = {
+const placeholderStyle: CSSProperties = {
   width: "100%",
   height: "100%",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: 11,
   color: "var(--text-muted)",
+  background: "linear-gradient(135deg, var(--gridline), var(--surface-1))",
 };
 
 const formatBadgeStyle: CSSProperties = {

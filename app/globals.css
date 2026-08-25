@@ -18,9 +18,12 @@
   --card-shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 4px 12px rgba(11, 11, 11, 0.05);
   --decline: #d03b3b;
 
-  /* YouTube platform identity — contained use only (active tab, badges, small
-     indicators). Never used to encode chart data or performance direction;
-     that stays on --success/--decline everywhere, including on YouTube. */
+  /* Platform identity colors — contained use only (active tab, selected
+     metric pill, small badges/indicators). Never used to encode chart data
+     or performance direction; that stays on --success/--decline on every
+     platform, including these three. */
+  --brand-instagram: #e1306c;
+  --brand-facebook: #0098d8;
   --brand-youtube: #d91f26;
 }
 
@@ -44,6 +47,8 @@
     --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
     --decline: #e66767;
 
+    --brand-instagram: #e0468a;
+    --brand-facebook: #1b8fc4;
     --brand-youtube: #f0403d;
   }
 }
@@ -67,6 +72,8 @@
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.28);
   --decline: #e66767;
 
+  --brand-instagram: #e0468a;
+  --brand-facebook: #1b8fc4;
   --brand-youtube: #f0403d;
 }
 
