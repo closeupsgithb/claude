@@ -732,7 +732,7 @@ export default function Page() {
 
           <div>
             <SectionLabel>Evolución diaria</SectionLabel>
-            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
               {EVOLUTION_METRICS.map((m) => (
                 <button key={m.key} onClick={() => setEvolutionMetric(m.key)} style={tabStyle(evolutionMetric === m.key, platformAccentVar(platform))}>
                   {m.label(reachLabel)}
@@ -830,7 +830,7 @@ export default function Page() {
 
           <div>
             <SectionLabel>Evolución diaria</SectionLabel>
-            <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
               {YOUTUBE_EVOLUTION_METRICS.map((m) => (
                 <button key={m.key} onClick={() => setYoutubeEvolutionMetric(m.key)} style={tabStyle(youtubeEvolutionMetric === m.key, "--brand-youtube")}>
                   {m.label}
