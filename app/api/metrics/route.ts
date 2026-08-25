@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { fetchNetworkSnapshot, fetchPeriodSummary, fetchAdsBreakdown, fetchTopPosts, MissingCredentialsError, BRAND_ID } from "@/lib/metricool";
+import {
+  fetchNetworkSnapshot,
+  fetchPeriodSummary,
+  fetchAdsBreakdown,
+  fetchTopPosts,
+  fetchYoutubeChannelSnapshot,
+  fetchYoutubePeriodSummary,
+  MissingCredentialsError,
+  BRAND_ID,
+} from "@/lib/metricool";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -43,6 +52,8 @@ export async function GET(request: Request) {
       prevPtInstagram,
       prevPtFacebook,
       prevAds,
+      youtube,
+      prevYoutube,
     ] = await Promise.all([
       fetchNetworkSnapshot("instagram", BRANDS.es.id, fromIso, toIso),
       fetchNetworkSnapshot("facebook", BRANDS.es.id, fromIso, toIso),
@@ -56,6 +67,8 @@ export async function GET(request: Request) {
       fetchPeriodSummary("instagram", BRANDS.pt.id, prevFromIso, prevToIso),
       fetchPeriodSummary("facebook", BRANDS.pt.id, prevFromIso, prevToIso),
       fetchAdsBreakdown(prevFromIso, prevToIso),
+      fetchYoutubeChannelSnapshot(fromIso, toIso),
+      fetchYoutubePeriodSummary(prevFromIso, prevToIso),
     ]);
 
     return NextResponse.json({
@@ -67,12 +80,14 @@ export async function GET(request: Request) {
       pt: { label: BRANDS.pt.label, instagram: ptInstagram, facebook: ptFacebook },
       ads,
       posts: [...esPosts, ...ptPosts],
+      youtube,
       previousPeriod: {
         from: prevFromIso,
         to: prevToIso,
         es: { instagram: prevEsInstagram, facebook: prevEsFacebook },
         pt: { instagram: prevPtInstagram, facebook: prevPtFacebook },
         ads: prevAds,
+        youtube: prevYoutube,
       },
     });
   } catch (err) {

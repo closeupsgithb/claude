@@ -7,10 +7,11 @@ type Props = {
   title: string;
   categories: string[];
   esValues: number[];
-  ptValues: number[];
+  ptValues?: number[];
   esLabel?: string;
   ptLabel?: string;
   formatValue?: (n: number) => string;
+  esColorVar?: "--series-es" | "--series-pt" | "--series-yt";
 };
 
 const WIDTH = 720;
@@ -24,9 +25,19 @@ function defaultFormat(n: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(n);
 }
 
-export default function BarChart({ title, categories, esValues, ptValues, esLabel = "España", ptLabel = "Portugal", formatValue = defaultFormat }: Props) {
+export default function BarChart({
+  title,
+  categories,
+  esValues,
+  ptValues = [],
+  esLabel = "España",
+  ptLabel = "Portugal",
+  formatValue = defaultFormat,
+  esColorVar = "--series-es",
+}: Props) {
   const [showTable, setShowTable] = useState(false);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const hasSecondSeries = ptValues.length > 0;
 
   if (categories.length === 0) {
     return (
@@ -40,7 +51,7 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
   const plotW = WIDTH - PAD_LEFT - PAD_RIGHT;
   const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM;
   const groupW = plotW / categories.length;
-  const barW = Math.min(22, groupW * 0.32);
+  const barW = hasSecondSeries ? Math.min(22, groupW * 0.32) : Math.min(30, groupW * 0.42);
   const gap = 3;
 
   const yScale = (v: number) => HEIGHT - PAD_BOTTOM - (v / maxV) * plotH;
@@ -53,7 +64,7 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
       <div style={headerRowStyle}>
         <h3 style={titleStyle}>{title}</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Legend esLabel={esLabel} ptLabel={ptLabel} />
+          {hasSecondSeries && <Legend esLabel={esLabel} ptLabel={ptLabel} esColorVar={esColorVar} />}
           <button onClick={() => setShowTable((s) => !s)} style={toggleButtonStyle}>
             {showTable ? "Ver gráfico" : "Ver tabla"}
           </button>
@@ -78,6 +89,7 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
             const esV = esValues[i] ?? 0;
             const ptV = ptValues[i] ?? 0;
             const isHover = hoverIdx === i;
+            const esX = hasSecondSeries ? cx - gap - barW : cx - barW / 2;
             return (
               <g
                 key={cat}
@@ -85,25 +97,27 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
                 onMouseLeave={() => setHoverIdx(null)}
                 style={{ cursor: "pointer" }}
               >
-                <rect x={cx - gap - barW} y={PAD_TOP} width={barW + gap * 2 + barW} height={plotH} fill="transparent" />
+                <rect x={cx - groupW / 2} y={PAD_TOP} width={groupW} height={plotH} fill="transparent" />
                 <rect
-                  x={cx - gap - barW}
+                  x={esX}
                   y={yScale(esV)}
                   width={barW}
                   height={Math.max(0, HEIGHT - PAD_BOTTOM - yScale(esV))}
                   rx={2}
-                  fill="var(--series-es)"
+                  fill={`var(${esColorVar})`}
                   opacity={isHover ? 1 : 0.9}
                 />
-                <rect
-                  x={cx + gap}
-                  y={yScale(ptV)}
-                  width={barW}
-                  height={Math.max(0, HEIGHT - PAD_BOTTOM - yScale(ptV))}
-                  rx={2}
-                  fill="var(--series-pt)"
-                  opacity={isHover ? 1 : 0.9}
-                />
+                {hasSecondSeries && (
+                  <rect
+                    x={cx + gap}
+                    y={yScale(ptV)}
+                    width={barW}
+                    height={Math.max(0, HEIGHT - PAD_BOTTOM - yScale(ptV))}
+                    rx={2}
+                    fill="var(--series-pt)"
+                    opacity={isHover ? 1 : 0.9}
+                  />
+                )}
                 <text x={cx} y={HEIGHT - 10} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
                   {cat}
                 </text>
@@ -118,7 +132,7 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
               <tr>
                 <th style={thStyle}>Categoría</th>
                 <th style={thStyle}>{esLabel}</th>
-                <th style={thStyle}>{ptLabel}</th>
+                {hasSecondSeries && <th style={thStyle}>{ptLabel}</th>}
               </tr>
             </thead>
             <tbody>
@@ -126,7 +140,7 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
                 <tr key={cat}>
                   <td style={tdStyle}>{cat}</td>
                   <td style={tdStyle}>{formatValue(esValues[i] ?? 0)}</td>
-                  <td style={tdStyle}>{formatValue(ptValues[i] ?? 0)}</td>
+                  {hasSecondSeries && <td style={tdStyle}>{formatValue(ptValues[i] ?? 0)}</td>}
                 </tr>
               ))}
             </tbody>
@@ -136,19 +150,24 @@ export default function BarChart({ title, categories, esValues, ptValues, esLabe
 
       {hoverIdx !== null && !showTable && (
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-          {categories[hoverIdx]} — {esLabel}: <strong>{formatValue(esValues[hoverIdx] ?? 0)}</strong> · {ptLabel}:{" "}
-          <strong>{formatValue(ptValues[hoverIdx] ?? 0)}</strong>
+          {categories[hoverIdx]} — {esLabel}: <strong>{formatValue(esValues[hoverIdx] ?? 0)}</strong>
+          {hasSecondSeries && (
+            <>
+              {" "}
+              · {ptLabel}: <strong>{formatValue(ptValues[hoverIdx] ?? 0)}</strong>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function Legend({ esLabel, ptLabel }: { esLabel: string; ptLabel: string }) {
+function Legend({ esLabel, ptLabel, esColorVar = "--series-es" }: { esLabel: string; ptLabel: string; esColorVar?: string }) {
   return (
     <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-secondary)" }}>
       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--series-es)", display: "inline-block" }} />
+        <span style={{ width: 8, height: 8, borderRadius: 2, background: `var(${esColorVar})`, display: "inline-block" }} />
         {esLabel}
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>

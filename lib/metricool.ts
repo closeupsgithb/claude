@@ -429,4 +429,216 @@ export async function fetchTopPosts(country: CountryKey, from: string, to: strin
   return [...igPostItems, ...igReelItems, ...fbPostItems, ...fbReelItems];
 }
 
+// ---------------------------------------------------------------------------
+// YouTube — Shimano Iberia
+//
+// Shimano runs a single YouTube channel that serves both España and Portugal;
+// Metricool has it connected under the España brand profile only. It must
+// never be split into an ES/PT pair or attributed solely to Spain — see
+// YOUTUBE_BRAND_ID below.
+// ---------------------------------------------------------------------------
+
+// The channel is Iberia-wide but Metricool only exposes the connection under
+// the España brand profile — there is no separate Portugal YouTube connector
+// to merge or duplicate. Reusing BRAND_ID.es here is intentional, not a
+// placeholder.
+const YOUTUBE_BRAND_ID = BRAND_ID.es;
+
+export type YoutubeVideoFormat = "short" | "video";
+
+export type YoutubeVideoItem = {
+  id: string;
+  url: string;
+  thumbnail: string | null;
+  title: string;
+  description: string;
+  date: string;
+  format: YoutubeVideoFormat;
+  durationSeconds: number | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchMinutes: number;
+  averageViewDuration: number | null;
+  engagedViews: number | null;
+  interactions: number;
+  engagementRate: number | null;
+};
+
+export type YoutubeChannelSnapshot = {
+  subscribers: number | null;
+  subscribersDelta: number | null;
+  subscribersSeries: SeriesPoint[];
+  subscribersSince: string | null;
+  views: number;
+  viewsSeries: SeriesPoint[];
+  viewsSince: string | null;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchMinutes: number;
+  videosPublished: number;
+  shortsPublished: number;
+  longFormPublished: number;
+  videos: YoutubeVideoItem[];
+};
+
+export type YoutubePeriodSummary = {
+  subscribersGained: number | null;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  engagementRate: number;
+};
+
+type YoutubeApiVideo = {
+  videoId: string;
+  thumbnailUrl?: string;
+  watchUrl: string;
+  title?: string;
+  description?: string;
+  publishedAt?: { dateTime: string };
+  views?: number;
+  engagedViews?: number;
+  watchMinutes?: number;
+  averageViewDuration?: number;
+  likes?: number;
+  dislikes?: number;
+  comments?: number;
+  shares?: number;
+  durationSeconds?: number;
+  videoType?: string;
+};
+
+// Confirmed live against Metricool on 2026-08-25 for this exact brand — the
+// single richest YouTube source available: real titles, bilingual
+// descriptions, thumbnails, duration and an explicit videoType ("SHORT" vs.
+// everything else), so Shorts/long-form is a real classification, not a
+// heuristic. No separate reels/shorts/videos endpoint exists for YouTube —
+// this one path returns everything.
+async function fetchYoutubeApiVideos(from: string, to: string): Promise<YoutubeApiVideo[]> {
+  const res = await metricoolGet<{ data: YoutubeApiVideo[] }>("/v2/analytics/posts/youtube", {
+    from,
+    to,
+    blogId: String(YOUTUBE_BRAND_ID),
+  });
+  return res.data ?? [];
+}
+
+export async function fetchYoutubeVideos(from: string, to: string): Promise<YoutubeVideoItem[]> {
+  const raw = await fetchYoutubeApiVideos(from, to);
+  return raw.map((v) => {
+    const views = v.views ?? 0;
+    const interactions = (v.likes ?? 0) + (v.comments ?? 0) + (v.shares ?? 0);
+    return {
+      id: v.videoId,
+      url: v.watchUrl,
+      thumbnail: v.thumbnailUrl ?? null,
+      title: v.title?.trim() || "Sin título",
+      description: v.description ?? "",
+      date: v.publishedAt?.dateTime ?? "",
+      format: v.videoType === "SHORT" ? "short" : "video",
+      durationSeconds: v.durationSeconds ?? null,
+      views,
+      likes: v.likes ?? 0,
+      comments: v.comments ?? 0,
+      shares: v.shares ?? 0,
+      watchMinutes: v.watchMinutes ?? 0,
+      averageViewDuration: v.averageViewDuration ?? null,
+      engagedViews: v.engagedViews ?? null,
+      interactions,
+      engagementRate: views > 0 ? (interactions / views) * 100 : null,
+    };
+  });
+}
+
+// The REST field names for the channel-level daily timeline (subscribers,
+// total views) could not be confirmed directly against Metricool — SSO
+// protection on the preview environment blocked the diagnostic probe used to
+// verify every other YouTube field below. Metricool's own analytics data
+// (queried live for this brand) confirms both series genuinely exist and go
+// back further than the per-video data, so this tries the most likely REST
+// names in order and takes the first that returns real values rather than
+// silently reporting zero. Flagged for a one-time manual check against
+// Metricool → Settings → API before this ships to production.
+const SUBSCRIBER_METRIC_CANDIDATES = ["subscribers", "Subscribers", "followers", "Followers"];
+const VIEWS_METRIC_CANDIDATES = ["videoViews", "views", "channelViews"];
+
+async function fetchYoutubeTimelineResilient(candidates: string[], from: string, to: string): Promise<SeriesPoint[]> {
+  for (const metric of candidates) {
+    try {
+      const series = await fetchTimeline({ network: "youtube", metric, from, to, blogId: YOUTUBE_BRAND_ID });
+      if (series.length > 0) return series;
+    } catch {
+      // try next candidate name
+    }
+  }
+  return [];
+}
+
+export async function fetchYoutubeChannelSnapshot(from: string, to: string): Promise<YoutubeChannelSnapshot> {
+  const [subscribersSeries, viewsSeries, videos] = await Promise.all([
+    fetchYoutubeTimelineResilient(SUBSCRIBER_METRIC_CANDIDATES, from, to),
+    fetchYoutubeTimelineResilient(VIEWS_METRIC_CANDIDATES, from, to),
+    fetchYoutubeVideos(from, to),
+  ]);
+
+  const subscribers = subscribersSeries.length > 0 ? subscribersSeries[subscribersSeries.length - 1].value : null;
+  const subscribersStart = subscribersSeries.length > 0 ? subscribersSeries[0].value : null;
+  const subscribersDelta = subscribers !== null && subscribersStart !== null ? subscribers - subscribersStart : null;
+
+  const likes = videos.reduce((a, v) => a + v.likes, 0);
+  const comments = videos.reduce((a, v) => a + v.comments, 0);
+  const shares = videos.reduce((a, v) => a + v.shares, 0);
+  const watchMinutes = videos.reduce((a, v) => a + v.watchMinutes, 0);
+  const shortsPublished = videos.filter((v) => v.format === "short").length;
+
+  return {
+    subscribers,
+    subscribersDelta,
+    subscribersSeries,
+    subscribersSince: subscribersSeries[0]?.date ?? null,
+    views: sum(viewsSeries),
+    viewsSeries,
+    viewsSince: viewsSeries[0]?.date ?? null,
+    likes,
+    comments,
+    shares,
+    watchMinutes,
+    videosPublished: videos.length,
+    shortsPublished,
+    longFormPublished: videos.length - shortsPublished,
+    videos,
+  };
+}
+
+// Lighter than fetchYoutubeChannelSnapshot — only what's needed to compare
+// one period against the immediately preceding one of equal length.
+export async function fetchYoutubePeriodSummary(from: string, to: string): Promise<YoutubePeriodSummary> {
+  const [subscribersSeries, viewsSeries, videos] = await Promise.all([
+    fetchYoutubeTimelineResilient(SUBSCRIBER_METRIC_CANDIDATES, from, to),
+    fetchYoutubeTimelineResilient(VIEWS_METRIC_CANDIDATES, from, to),
+    fetchYoutubeVideos(from, to),
+  ]);
+
+  const subsStart = subscribersSeries.length > 0 ? subscribersSeries[0].value : null;
+  const subsEnd = subscribersSeries.length > 0 ? subscribersSeries[subscribersSeries.length - 1].value : null;
+  const likes = videos.reduce((a, v) => a + v.likes, 0);
+  const comments = videos.reduce((a, v) => a + v.comments, 0);
+  const shares = videos.reduce((a, v) => a + v.shares, 0);
+  const views = sum(viewsSeries);
+  const interactions = likes + comments + shares;
+
+  return {
+    subscribersGained: subsStart !== null && subsEnd !== null ? subsEnd - subsStart : null,
+    views,
+    likes,
+    comments,
+    shares,
+    engagementRate: views > 0 ? (interactions / views) * 100 : 0,
+  };
+}
+
 export { MissingCredentialsError, BRAND_ID };
