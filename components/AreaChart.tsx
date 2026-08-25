@@ -3,10 +3,12 @@
 import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { SeriesPoint } from "@/lib/metricool";
+import InfoTip from "@/components/InfoTip";
 
 type Props = {
   title: string;
   subtitle?: string;
+  infoTip?: string;
   esSeries: SeriesPoint[];
   ptSeries?: SeriesPoint[];
   esLabel?: string;
@@ -44,6 +46,7 @@ function seriesPath(points: { x: number; y: number }[]): string {
 export default function AreaChart({
   title,
   subtitle,
+  infoTip,
   esSeries,
   ptSeries = [],
   esLabel = "España",
@@ -111,7 +114,10 @@ export default function AreaChart({
     <div style={cardStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>{title}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <h3 style={titleStyle}>{title}</h3>
+            {infoTip && <InfoTip text={infoTip} />}
+          </div>
           {subtitle && <p style={subtitleStyle}>{subtitle}</p>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 2 }}>

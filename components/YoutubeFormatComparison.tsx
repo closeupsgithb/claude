@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { YoutubeVideoItem } from "@/lib/metricool";
+import InfoTip from "@/components/InfoTip";
 
 type Props = { videos: YoutubeVideoItem[] };
 
@@ -33,49 +34,76 @@ function statsFor(videos: YoutubeVideoItem[]): FormatStats | null {
   };
 }
 
-function Row({ label, shorts, videos, format }: { label: string; shorts: number; videos: number; format: (n: number) => string }) {
-  const max = Math.max(shorts, videos, 0.0001);
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-secondary)" }}>
-        <span>{label}</span>
-      </div>
-      <BarPair value={shorts} max={max} color="var(--series-yt)" format={format} />
-      <BarPair value={videos} max={max} color="#c0392b" format={format} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)" }}>{value}</span>
     </div>
   );
 }
 
-function BarPair({ value, max, color, format }: { value: number; max: number; color: string; format: (n: number) => string }) {
-  const pct = Math.max(2, (value / max) * 100);
+function FormatCard({ title, colorVar, stats }: { title: string; colorVar: string; stats: FormatStats | null }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ flex: 1, height: 10, borderRadius: 4, background: "var(--gridline)", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 4 }} />
+    <div
+      style={{
+        background: `linear-gradient(180deg, color-mix(in srgb, var(${colorVar}) 6%, var(--surface-1)), var(--surface-1) 90px)`,
+        border: "1px solid var(--border)",
+        borderTop: `3px solid var(${colorVar})`,
+        borderRadius: 12,
+        padding: "16px 18px",
+        flex: "1 1 240px",
+        minWidth: 220,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{title}</h3>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{stats ? `${stats.count} publicados` : "0 publicados"}</span>
       </div>
-      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-primary)", minWidth: 64, textAlign: "right" }}>{format(value)}</span>
+      {stats ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Metric label="Views / publicación" value={formatNumber(stats.viewsPerVideo)} />
+          <Metric label="Engagement medio" value={`${formatDecimal(stats.avgEngagement)}%`} />
+          <Metric label="Likes / publicación" value={formatNumber(stats.likesPerVideo)} />
+          <Metric label="Watch time / publicación" value={`${formatDecimal(stats.watchMinutesPerVideo)} min`} />
+        </div>
+      ) : (
+        <p style={{ fontSize: 12.5, color: "var(--text-muted)", margin: 0 }}>Sin publicaciones de este formato en el periodo.</p>
+      )}
     </div>
   );
 }
 
-function buildConclusion(shorts: FormatStats, videos: FormatStats): string | null {
-  if (shorts.count < 3 || videos.count < 3) return null;
+// Three tiers, from strongest to weakest evidence — never a flat refusal when
+// there's at least a directional signal, but never a confident claim without
+// a real sample either.
+function buildConclusion(shorts: FormatStats | null, videos: FormatStats | null): string {
+  if (!shorts || !videos) {
+    return "Todavía no hay publicaciones de ambos formatos este periodo para comparar.";
+  }
 
   const viewsRatio = videos.viewsPerVideo > 0 ? shorts.viewsPerVideo / videos.viewsPerVideo : 0;
-  const watchRatio = shorts.watchMinutesPerVideo > 0 ? videos.watchMinutesPerVideo / shorts.watchMinutesPerVideo : 0;
+  const engagementLeaderIsVideo = videos.avgEngagement > shorts.avgEngagement;
+  const engagementGapPct = shorts.avgEngagement > 0 ? Math.abs((videos.avgEngagement - shorts.avgEngagement) / shorts.avgEngagement) * 100 : 0;
 
-  if (viewsRatio >= 1.5 && watchRatio >= 1.3) {
-    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación, pero cada vídeo tradicional acumula ${formatDecimal(
-      watchRatio
-    )}× más tiempo de visualización que un Short.`;
+  const strongSample = shorts.count >= 3 && videos.count >= 3;
+  const hedge = strongSample ? "" : ", aunque la muestra todavía es limitada";
+
+  if (viewsRatio >= 1.4 && engagementGapPct >= 15) {
+    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación, pero los ${
+      engagementLeaderIsVideo ? "vídeos tradicionales" : "Shorts"
+    } obtienen más engagement por publicación este periodo${hedge}.`;
   }
-  if (viewsRatio >= 1.5) {
-    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación que los vídeos tradicionales este periodo.`;
+  if (viewsRatio >= 1.4) {
+    return `Los Shorts generan ${formatDecimal(viewsRatio)}× más visualizaciones por publicación que los vídeos tradicionales este periodo${hedge}.`;
   }
-  if (viewsRatio > 0 && viewsRatio <= 0.67) {
-    return `Los vídeos tradicionales generan ${formatDecimal(1 / viewsRatio)}× más visualizaciones por publicación que los Shorts este periodo.`;
+  if (viewsRatio > 0 && viewsRatio <= 0.72) {
+    return `Los vídeos tradicionales generan ${formatDecimal(1 / viewsRatio)}× más visualizaciones por publicación que los Shorts este periodo${hedge}.`;
   }
-  return null;
+  if (engagementGapPct >= 20) {
+    return `Los ${engagementLeaderIsVideo ? "vídeos tradicionales" : "Shorts"} están obteniendo más engagement por publicación este periodo${hedge}.`;
+  }
+  return "Sin diferencia relevante entre formatos este periodo.";
 }
 
 export default function YoutubeFormatComparison({ videos }: Props) {
@@ -84,72 +112,28 @@ export default function YoutubeFormatComparison({ videos }: Props) {
   const shortsStats = statsFor(shortsVideos);
   const videosStats = statsFor(longVideos);
 
-  if (!shortsStats && !videosStats) {
+  if (videos.length === 0) {
     return (
       <div style={cardStyle}>
-        <h3 style={titleStyle}>Shorts vs. Vídeos</h3>
+        <h3 style={titleStyle}>Formato</h3>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 8 }}>Sin publicaciones en este periodo.</p>
       </div>
     );
   }
 
-  const conclusion = shortsStats && videosStats ? buildConclusion(shortsStats, videosStats) : null;
-
   return (
     <div style={cardStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
         <h3 style={titleStyle}>Shorts vs. Vídeos</h3>
-        <div style={{ display: "flex", gap: 12, fontSize: 11.5, color: "var(--text-secondary)" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--series-yt)", display: "inline-block" }} />
-            Shorts ({shortsStats?.count ?? 0})
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#c0392b", display: "inline-block" }} />
-            Vídeos ({videosStats?.count ?? 0})
-          </span>
-        </div>
-      </div>
-      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 14px" }}>Métricas medias por publicación — permite comparar formatos con distinto volumen.</p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Row label="Visualizaciones / publicación" shorts={shortsStats?.viewsPerVideo ?? 0} videos={videosStats?.viewsPerVideo ?? 0} format={formatNumber} />
-        <Row label="Likes / publicación" shorts={shortsStats?.likesPerVideo ?? 0} videos={videosStats?.likesPerVideo ?? 0} format={formatNumber} />
-        <Row
-          label="Comentarios / publicación"
-          shorts={shortsStats?.commentsPerVideo ?? 0}
-          videos={videosStats?.commentsPerVideo ?? 0}
-          format={formatNumber}
-        />
-        <Row
-          label="Tiempo de visualización / publicación (min)"
-          shorts={shortsStats?.watchMinutesPerVideo ?? 0}
-          videos={videosStats?.watchMinutesPerVideo ?? 0}
-          format={formatDecimal}
-        />
-        <Row
-          label="Engagement medio"
-          shorts={shortsStats?.avgEngagement ?? 0}
-          videos={videosStats?.avgEngagement ?? 0}
-          format={(n) => `${formatDecimal(n)}%`}
-        />
+        <InfoTip text="Métricas medias por publicación, para comparar formatos con distinto volumen." />
       </div>
 
-      {conclusion ? (
-        <p style={conclusionStyle}>{conclusion}</p>
-      ) : (
-        shortsStats &&
-        videosStats && (
-          <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "14px 0 0" }}>
-            Sin diferencia clara entre formatos este periodo — o volumen insuficiente para una conclusión fiable.
-          </p>
-        )
-      )}
-      {(!shortsStats || !videosStats) && (
-        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "14px 0 0" }}>
-          Solo hay publicaciones de un formato este periodo — la comparativa aparecerá cuando existan ambos.
-        </p>
-      )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 14 }}>
+        <FormatCard title="Shorts" colorVar="--series-yt" stats={shortsStats} />
+        <FormatCard title="Vídeos" colorVar="--series-es" stats={videosStats} />
+      </div>
+
+      <p style={conclusionStyle}>{buildConclusion(shortsStats, videosStats)}</p>
     </div>
   );
 }
@@ -167,10 +151,10 @@ const titleStyle: CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, co
 const conclusionStyle: CSSProperties = {
   fontSize: 13,
   color: "var(--text-primary)",
-  background: "color-mix(in srgb, var(--series-yt) 8%, var(--surface-1))",
+  background: "var(--page-plane)",
   border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "10px 12px",
-  margin: "14px 0 0",
+  margin: 0,
   lineHeight: 1.4,
 };

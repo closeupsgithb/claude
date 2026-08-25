@@ -487,6 +487,7 @@ export type YoutubeChannelSnapshot = {
 export type YoutubePeriodSummary = {
   subscribersGained: number | null;
   views: number;
+  watchMinutes: number;
   likes: number;
   comments: number;
   shares: number;
@@ -656,12 +657,14 @@ export async function fetchYoutubePeriodSummary(from: string, to: string): Promi
   const likes = videos.reduce((a, v) => a + v.likes, 0);
   const comments = videos.reduce((a, v) => a + v.comments, 0);
   const shares = videos.reduce((a, v) => a + v.shares, 0);
+  const watchMinutes = videos.reduce((a, v) => a + v.watchMinutes, 0);
   const views = sum(viewsSeries);
   const interactions = likes + comments + shares;
 
   return {
     subscribersGained: subsStart !== null && subsEnd !== null ? subsEnd - subsStart : null,
     views,
+    watchMinutes,
     likes,
     comments,
     shares,

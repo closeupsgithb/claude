@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { YoutubeVideoItem } from "@/lib/metricool";
+import InfoTip from "@/components/InfoTip";
 
 type Props = {
   items: YoutubeVideoItem[];
@@ -10,12 +11,12 @@ type Props = {
 
 type SortKey = "views" | "likes" | "comments" | "watchMinutes" | "engagementRate";
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+const SORT_OPTIONS: { key: SortKey; label: string; tip?: string }[] = [
   { key: "views", label: "Visualizaciones" },
   { key: "likes", label: "Likes" },
   { key: "comments", label: "Comentarios" },
   { key: "watchMinutes", label: "Tiempo de visualización" },
-  { key: "engagementRate", label: "Engagement" },
+  { key: "engagementRate", label: "Engagement", tip: "(Likes + comentarios + shares) ÷ visualizaciones." },
 ];
 
 function formatNumber(n: number): string {
@@ -27,16 +28,28 @@ function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "short" }).format(new Date(iso));
 }
 
-function formatWatchTime(minutes: number): string {
-  if (minutes >= 60) return `${(minutes / 60).toFixed(1)} h`;
-  return `${formatNumber(minutes)} min`;
-}
-
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "";
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`;
+}
+
+function ShortIcon() {
+  return (
+    <svg width="8" height="10" viewBox="0 0 8 10" fill="none" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="7" height="9" rx="1.5" stroke="currentColor" />
+      <circle cx="4" cy="8" r="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function VideoIcon() {
+  return (
+    <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+      <path d="M1 0.5 L9 5 L1 9.5 Z" />
+    </svg>
+  );
 }
 
 export default function YoutubeTopContent({ items }: Props) {
@@ -74,6 +87,7 @@ export default function YoutubeTopContent({ items }: Props) {
           {SORT_OPTIONS.map((opt) => (
             <button key={opt.key} onClick={() => setSortKey(opt.key)} style={pillStyle(sortKey === opt.key)}>
               {opt.label}
+              {opt.tip && <InfoTip text={opt.tip} />}
             </button>
           ))}
         </div>
@@ -90,7 +104,7 @@ export default function YoutubeTopContent({ items }: Props) {
             : sortKey === "engagementRate"
             ? `${metricValue!.toFixed(1)}%`
             : sortKey === "watchMinutes"
-            ? formatWatchTime(metricValue!)
+            ? `${formatNumber(Math.round(metricValue!))} min`
             : formatNumber(metricValue!);
 
           return (
@@ -102,17 +116,18 @@ export default function YoutubeTopContent({ items }: Props) {
                 ) : (
                   <div style={noImageStyle}>sin imagen</div>
                 )}
-                <span style={{ ...formatBadgeStyle, background: item.format === "short" ? "#a5459e" : "#c0392b" }}>
-                  {item.format === "short" ? "Short" : "Vídeo"}
+                <span style={{ ...rankBadgeStyle }}>#{i + 1}</span>
+                <span style={{ ...formatBadgeStyle, background: item.format === "short" ? "var(--brand-youtube)" : "rgba(11,11,11,0.72)" }}>
+                  {item.format === "short" ? <ShortIcon /> : <VideoIcon />}
+                  {item.format === "short" ? "SHORT" : "VÍDEO"}
                 </span>
-                {item.durationSeconds !== null && <span style={durationBadgeStyle}>{formatDuration(item.durationSeconds)}</span>}
-                <span style={rankBadgeStyle}>#{i + 1}</span>
               </div>
               <div style={bodyStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4, gap: 6 }}>
-                  <span style={titleTextStyle}>{item.title}</span>
+                <div style={titleTextStyle}>{item.title}</div>
+                <div style={{ fontSize: 10.5, color: "var(--text-muted)", margin: "3px 0 8px" }}>
+                  {formatDate(item.date)}
+                  {item.durationSeconds !== null && ` · ${formatDuration(item.durationSeconds)}`}
                 </div>
-                <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginBottom: 6 }}>{formatDate(item.date)}</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>{metricLabel}</div>
                 <div style={progressTrackStyle}>
                   <div
@@ -129,17 +144,15 @@ export default function YoutubeTopContent({ items }: Props) {
           );
         })}
       </div>
-
-      <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "12px 0 0" }}>
-        Metricool no expone impresiones ni CTR para YouTube — el ranking se basa en las métricas disponibles (visualizaciones,
-        likes, comentarios, tiempo de visualización y engagement).
-      </p>
     </div>
   );
 }
 
 function pillStyle(active: boolean): CSSProperties {
   return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
     fontSize: 11,
     padding: "4px 10px",
     borderRadius: 999,
@@ -225,19 +238,9 @@ const formatBadgeStyle: CSSProperties = {
   borderRadius: 999,
   color: "#fff",
   letterSpacing: "0.02em",
-  textTransform: "uppercase",
-};
-
-const durationBadgeStyle: CSSProperties = {
-  position: "absolute",
-  bottom: 6,
-  right: 6,
-  fontSize: 9.5,
-  fontWeight: 700,
-  padding: "2px 6px",
-  borderRadius: 4,
-  background: "rgba(0,0,0,0.7)",
-  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
 };
 
 const rankBadgeStyle: CSSProperties = {
