@@ -52,6 +52,16 @@ function VideoIcon() {
   );
 }
 
+// YouTube's thumbnail CDN occasionally 503s on a valid URL (an upstream
+// outage, not a missing thumbnail) — onError swaps to the same fallback
+// used when there's genuinely no thumbnail, instead of a blank box.
+function Thumb({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <div style={noImageStyle}>sin imagen</div>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" style={thumbStyle} onError={() => setFailed(true)} />;
+}
+
 export default function YoutubeTopContent({ items }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("views");
 
@@ -110,12 +120,7 @@ export default function YoutubeTopContent({ items }: Props) {
           return (
             <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" style={cardLinkStyle} title={item.title}>
               <div style={thumbWrapStyle}>
-                {item.thumbnail ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.thumbnail} alt="" style={thumbStyle} />
-                ) : (
-                  <div style={noImageStyle}>sin imagen</div>
-                )}
+                <Thumb src={item.thumbnail} />
                 <span style={{ ...rankBadgeStyle }}>#{i + 1}</span>
                 <span style={{ ...formatBadgeStyle, background: item.format === "short" ? "var(--brand-youtube)" : "rgba(11,11,11,0.72)" }}>
                   {item.format === "short" ? <ShortIcon /> : <VideoIcon />}

@@ -24,6 +24,16 @@ const TYPE_STYLE: Record<ContentType, { bg: string; fg: string; icon: "play" | "
   Imagen: { bg: "#6b7280", fg: "#ffffff", icon: "square" },
 };
 
+// The source CDN occasionally 503s on a valid image URL (upstream outage,
+// not a missing thumbnail) — onError swaps to the same fallback used when
+// there's genuinely no image, instead of leaving a blank box.
+function Thumb({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <div style={noImageStyle}>sin imagen</div>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" style={thumbStyle} onError={() => setFailed(true)} />;
+}
+
 function TypeIcon({ icon }: { icon: "play" | "stack" | "square" }) {
   if (icon === "play") {
     return (
@@ -111,12 +121,7 @@ export default function TopContent({ items }: Props) {
           return (
             <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" style={cardLinkStyle}>
               <div style={thumbWrapStyle}>
-                {item.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.image} alt="" style={thumbStyle} />
-                ) : (
-                  <div style={noImageStyle}>sin imagen</div>
-                )}
+                <Thumb src={item.image} />
                 <span style={{ ...typeBadgeStyle, background: typeStyle.bg, color: typeStyle.fg }}>
                   <TypeIcon icon={typeStyle.icon} />
                   {item.type}
