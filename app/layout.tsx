@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Shimano Iberia — Dashboard",
-  description: "Métricas de redes sociales de Shimano Iberia en tiempo real, por país y plataforma.",
+  title: "Shimano Iberia · Social Performance",
+  description: "Social Performance Dashboard · Shimano Iberia",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
