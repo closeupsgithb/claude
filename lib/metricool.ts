@@ -554,26 +554,39 @@ export async function fetchYoutubeVideos(from: string, to: string): Promise<Yout
   });
 }
 
-// The REST field names for the channel-level daily timeline (subscribers,
-// total views) could not be confirmed directly against Metricool — SSO
-// protection on the preview environment blocked the diagnostic probe used to
-// verify every other YouTube field below. Metricool's own analytics data
-// (queried live for this brand) confirms both series genuinely exist and go
-// back further than the per-video data, so this tries the most likely REST
-// names in order and takes the first that returns real values rather than
-// silently reporting zero. Flagged for a one-time manual check against
-// Metricool → Settings → API before this ships to production.
-const SUBSCRIBER_METRIC_CANDIDATES = ["subscribers", "Subscribers", "followers", "Followers"];
+// The exact REST field name Metricool uses for the channel's daily
+// subscriber count could not be confirmed directly (the preview
+// environment's SSO protection blocked the diagnostic probe used to verify
+// every other YouTube field in this file). Metricool's own analytics engine,
+// queried live for this brand, confirms the series genuinely exists — this
+// is purely a "which string does the REST API call it" gap. "videoViews"
+// below (VIEWS_METRIC_CANDIDATES) WAS confirmed this way, which is why the
+// two lists don't need to name the same convention.
+//
+// Rather than guess wrong and silently show 0, every plausible name is
+// requested in parallel (cheap — a handful of small concurrent GETs, no
+// added latency since they race) and the first one to return real rows
+// wins. Flagged for a one-time manual check against Metricool → Settings →
+// API to confirm which candidate actually matched and drop the rest.
+const SUBSCRIBER_METRIC_CANDIDATES = [
+  "subscribers",
+  "Subscribers",
+  "followers",
+  "Followers",
+  "subscriberCount",
+  "totalSubscribers",
+  "channelSubscribers",
+  "subscribersCount",
+  "totalFollowers",
+];
 const VIEWS_METRIC_CANDIDATES = ["videoViews", "views", "channelViews"];
 
 async function fetchYoutubeTimelineResilient(candidates: string[], from: string, to: string): Promise<SeriesPoint[]> {
-  for (const metric of candidates) {
-    try {
-      const series = await fetchTimeline({ network: "youtube", metric, from, to, blogId: YOUTUBE_BRAND_ID });
-      if (series.length > 0) return series;
-    } catch {
-      // try next candidate name
-    }
+  const attempts = await Promise.allSettled(
+    candidates.map((metric) => fetchTimeline({ network: "youtube", metric, from, to, blogId: YOUTUBE_BRAND_ID }))
+  );
+  for (const result of attempts) {
+    if (result.status === "fulfilled" && result.value.length > 0) return result.value;
   }
   return [];
 }
