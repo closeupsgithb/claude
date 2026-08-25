@@ -751,8 +751,8 @@ export default function Page() {
             )}
             {youtubeEvolutionMetric === "interactions" && (
               <AreaChart
-                title="Interacciones diarias"
-                subtitle="Likes, comentarios y compartidos de los vídeos publicados cada día — no incluye interacción posterior recibida por vídeos de días anteriores."
+                title="Interacciones por fecha de publicación"
+                subtitle="Likes, comentarios y compartidos acumulados hasta hoy, agrupados por el día en que se publicó cada vídeo — los publicados al inicio del periodo llevan más tiempo acumulando interacción que los más recientes."
                 esSeries={youtubeDailyInteractions}
                 esLabel="Interacciones"
                 esColorVar="--series-yt"
@@ -760,8 +760,8 @@ export default function Page() {
             )}
             {youtubeEvolutionMetric === "watchTime" && (
               <AreaChart
-                title="Tiempo de visualización diario (min)"
-                subtitle="Minutos vistos de los vídeos publicados cada día."
+                title="Tiempo de visualización por fecha de publicación"
+                subtitle="Minutos vistos acumulados hasta hoy, agrupados por el día en que se publicó cada vídeo."
                 esSeries={youtubeDailyWatchMinutes}
                 esLabel="Minutos"
                 esColorVar="--series-yt"

@@ -527,8 +527,23 @@ async function fetchYoutubeApiVideos(from: string, to: string): Promise<YoutubeA
   return res.data ?? [];
 }
 
+// /v2/analytics/posts/youtube does not return only videos published in
+// [from, to] — confirmed live: a 30-day window returned videos published as
+// far back as 2024, each carrying that period's accrued views/watch time/
+// likes for that older upload (evergreen content still getting traffic).
+// That's a legitimate signal on its own, but this app's "Top Contenidos",
+// Shorts-vs-Vídeos comparison and per-day evolution all mean "content
+// published this period" (matching the brief and the equivalent IG/FB
+// sections), so results are filtered down to videos actually published
+// inside the requested window before anything else touches them.
+function isPublishedInRange(dateIso: string, from: string, to: string): boolean {
+  if (!dateIso) return false;
+  const t = new Date(dateIso).getTime();
+  return t >= new Date(from).getTime() && t <= new Date(to).getTime();
+}
+
 export async function fetchYoutubeVideos(from: string, to: string): Promise<YoutubeVideoItem[]> {
-  const raw = await fetchYoutubeApiVideos(from, to);
+  const raw = (await fetchYoutubeApiVideos(from, to)).filter((v) => isPublishedInRange(v.publishedAt?.dateTime ?? "", from, to));
   return raw.map((v) => {
     const views = v.views ?? 0;
     const interactions = (v.likes ?? 0) + (v.comments ?? 0) + (v.shares ?? 0);

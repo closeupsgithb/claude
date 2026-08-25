@@ -109,14 +109,18 @@ export default function YoutubeTopCards({
         label="Visualizaciones"
         value={formatNumber(views)}
         changeChip={<ChangeChip current={views} previous={viewsPrev} />}
-        note={viewsSince ? `Histórico diario desde ${formatDateShort(viewsSince)}` : undefined}
+        note={viewsSince ? `Todo el canal · histórico diario desde ${formatDateShort(viewsSince)}` : "Todo el canal en el periodo"}
       />
-      <Card label="Tiempo de visualización" value={formatWatchTime(watchMinutes)} changeChip={<span style={{ fontSize: 11, color: "var(--text-muted)" }}>Suma del periodo</span>} />
+      <Card
+        label="Tiempo de visualización"
+        value={formatWatchTime(watchMinutes)}
+        changeChip={<span style={{ fontSize: 11, color: "var(--text-muted)" }}>Vídeos publicados en el periodo</span>}
+      />
       <Card
         label="Interacciones"
         value={formatNumber(interactions)}
         changeChip={<ChangeChip current={interactions} previous={interactionsPrev} />}
-        note="Likes + comentarios + shares"
+        note="Likes + comentarios + shares de los vídeos publicados en el periodo"
       />
     </section>
   );
