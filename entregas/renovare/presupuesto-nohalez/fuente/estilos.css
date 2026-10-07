@@ -1,0 +1,215 @@
+/* ─────────────────────────────────────────────────────────────
+   Renovare Design & Build · sistema editorial de presupuestos
+   Marca: dorado #BA9A58 (logotipo). Tipos: EB Garamond
+   (títulos, eco de la serif clásica del logotipo) + Inter (texto
+   y cifras con numerales tabulares).
+   ───────────────────────────────────────────────────────────── */
+
+@font-face { font-family: "Inter"; src: url(fonts/Inter-Regular.otf); font-weight: 400; }
+@font-face { font-family: "Inter"; src: url(fonts/Inter-Italic.otf); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Inter"; src: url(fonts/Inter-Medium.otf); font-weight: 500; }
+@font-face { font-family: "Inter"; src: url(fonts/Inter-SemiBold.otf); font-weight: 600; }
+@font-face { font-family: "Inter"; src: url(fonts/Inter-Bold.otf); font-weight: 700; }
+@font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-500-normal.woff); font-weight: 500; }
+@font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-600-normal.woff); font-weight: 600; }
+@font-face { font-family: "EB Garamond"; src: url(fonts/eb-garamond-latin-500-italic.woff); font-weight: 500; font-style: italic; }
+
+:root {
+  --oro: #BA9A58;          /* marca: filetes, logotipo, cifra principal */
+  --oro-texto: #85692F;    /* dorado oscurecido para texto pequeño (contraste 5,1:1 sobre blanco) */
+  --oro-claro: #F3ECDD;    /* fondos de énfasis */
+  --tinta: #1C1A16;        /* texto principal */
+  --gris: #625B50;         /* texto secundario (contraste 6,4:1) */
+  --linea: #E2DBCD;        /* filetes de tabla */
+  --papel: #FAF8F4;        /* fondos neutros */
+  --rev: #B4441F;          /* solo marcas de revisión del borrador */
+}
+
+/* ── Página ─────────────────────────────────────────────── */
+@page {
+  size: A4;
+  margin: 27mm 20mm 21mm 20mm;
+  @top-center { content: element(cabecera); width: 100%; vertical-align: bottom; padding-bottom: 4mm; }
+  @bottom-left {
+    content: "Renovare Design & Build SL · CIF B-88775341 · Calle Creu Roja 1, bajo · Benetússer · www.renovaredyb.com";
+    font: 400 7pt "Inter"; color: var(--gris); vertical-align: top; padding-top: 4mm;
+  }
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font: 600 7.5pt "Inter"; color: var(--oro-texto); vertical-align: top; padding-top: 4mm;
+  }
+}
+@page :first {
+  margin-top: 16mm;
+  @top-center { content: none; }
+}
+
+.cabecera-run { position: running(cabecera); display: flex; justify-content: space-between; align-items: flex-end;
+                width: 100%; border-bottom: .5pt solid var(--linea); padding-bottom: 2.4mm; }
+.cabecera-run img { height: 9.5mm; width: auto; display: block; }
+.cab-ref { font: 500 7.5pt "Inter"; color: var(--gris); letter-spacing: .02em; }
+.cab-borrador { display: none; }
+body.borrador .cab-borrador { display: inline; color: var(--rev); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+html { font-family: "Inter", sans-serif; font-size: 9.6pt; line-height: 1.5; color: var(--tinta);
+       hyphens: manual; }
+body { margin: 0; }
+p { margin: 0 0 2.6mm; orphans: 3; widows: 3; text-align: left; }
+strong, b { font-weight: 600; }
+
+/* ── Tipografía ─────────────────────────────────────────── */
+h1, h2 { font-family: "EB Garamond", serif; font-weight: 500; color: var(--tinta); line-height: 1.1; margin: 0; }
+h1 { font-size: 29pt; letter-spacing: -.005em; }
+h2 { font-size: 22pt; margin-bottom: 5mm; }
+h3 { font: 600 10pt "Inter"; color: var(--tinta); margin: 5.5mm 0 1.6mm; letter-spacing: .005em;
+     break-after: avoid; }
+h3::before { content: ""; display: inline-block; width: 2.4mm; height: 2.4mm; background: var(--oro);
+             margin-right: 2.2mm; vertical-align: .2mm; }
+.eyebrow, .num-seccion { font: 600 7.8pt "Inter"; letter-spacing: .16em; text-transform: uppercase;
+                          color: var(--oro-texto); margin: 0 0 2.5mm; }
+.num-seccion { padding-bottom: 2mm; border-bottom: .6pt solid var(--oro); display: block; margin-bottom: 4mm; }
+
+/* ── Secciones ──────────────────────────────────────────── */
+.seccion { break-before: page; }
+
+/* ── Portada ────────────────────────────────────────────── */
+.portada-top { display: flex; justify-content: space-between; align-items: flex-end;
+               padding-bottom: 5mm; border-bottom: .6pt solid var(--oro); margin-bottom: 7mm; }
+.logo-portada { width: 52mm; height: auto; display: block; margin: 0 0 0 -1mm; }
+.empresa { font-size: 7.6pt; line-height: 1.55; color: var(--gris); text-align: right; }
+.empresa strong { color: var(--tinta); }
+.subtitulo { font: italic 500 13.5pt "EB Garamond", serif; color: var(--oro-texto); margin: 1mm 0 5mm; }
+
+.ficha { display: flex; flex-wrap: wrap; margin: 0 0 6mm; border-top: .6pt solid var(--linea);
+         border-bottom: .6pt solid var(--linea); padding: 3mm 0; }
+.ficha div { margin-right: 8mm; }
+.ficha div:first-child { flex-basis: 100%; margin-bottom: 2mm; }
+.ficha dt { font: 500 6.9pt "Inter"; text-transform: uppercase; letter-spacing: .1em; color: var(--gris); }
+.ficha dd { margin: .5mm 0 0; font-weight: 500; }
+.ficha div:first-child dd { font: 600 12pt "Inter"; }
+
+.h-resumen { font-size: 16pt; margin-bottom: 2.5mm; }
+.intro { font-size: 9.4pt; line-height: 1.5; margin-bottom: 5mm; }
+
+.inversion { width: 100%; background: var(--papel); border: .6pt solid var(--linea); border-left: 1.4mm solid var(--oro);
+             margin-bottom: 3mm; }
+.inversion > tbody > tr > td, .inversion > tr > td { vertical-align: middle; }
+.inv-principal { width: 50%; padding: 4.5mm 6mm; }
+.inv-label { display: block; font: 600 7.6pt "Inter"; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-texto); }
+.inv-cifra { display: inline-block; font: 500 31pt "EB Garamond", serif; font-variant-numeric: lining-nums; line-height: 1; margin-top: 2mm; white-space: nowrap; }
+.inv-iva { display: inline-block; font: 500 12pt "Inter"; color: var(--gris); margin-left: 1.5mm; }
+.inv-tabla { padding: 4mm 6mm 4mm 2mm; }
+.inv-desglose { width: 100%; }
+.inv-desglose th { text-align: left; font-weight: 400; color: var(--gris); padding: 1.2mm 0; }
+.inv-desglose td { padding: 1.2mm 0; }
+.inv-desglose tr + tr th, .inv-desglose tr + tr td { border-top: .5pt solid var(--linea); }
+.inv-desglose .inv-total th, .inv-desglose .inv-total td { font-weight: 600; color: var(--tinta); border-top: .8pt solid var(--oro); }
+
+.claves { display: flex; gap: 8mm; margin: 5mm 0 5mm; }
+.clave { flex: 1; }
+.clave h3 { margin-top: 0; }
+.clave dl, .cifras-acept { margin: 0; }
+.clave dl div { display: flex; padding: 1.2mm 0; border-bottom: .5pt solid var(--linea); }
+.clave dt { width: 30mm; flex: none; color: var(--gris); }
+.clave dd { margin: 0; font-weight: 500; }
+
+.siguiente { background: var(--oro-claro); padding: 3.6mm 5mm; margin: 0; }
+.siguiente span { display: block; font: 600 7.4pt "Inter"; letter-spacing: .14em; text-transform: uppercase;
+                  color: var(--oro-texto); margin-bottom: 1mm; }
+.siguiente.final { margin-top: 6mm; }
+
+/* ── 01 · Alcance ───────────────────────────────────────── */
+.incluye { display: flex; gap: 6mm; margin: 5mm 0 1mm; }
+.incluye .col { flex: 1; padding: 3.5mm 4.5mm 1.5mm; background: var(--papel); border-top: .8pt solid var(--oro); }
+.incluye .col.no { border-top-color: var(--gris); }
+.incluye h3 { margin-top: 0; }
+.incluye .no h3::before { background: var(--gris); }
+
+table { border-collapse: collapse; width: 100%; }
+.datos { margin-top: 1mm; }
+.datos th { text-align: left; font-weight: 400; color: var(--gris); width: 52mm; vertical-align: top; }
+.datos th, .datos td { padding: 1.7mm 0; border-bottom: .5pt solid var(--linea); }
+.datos tr:first-child th, .datos tr:first-child td { border-top: .5pt solid var(--linea); }
+.datos td { font-weight: 500; }
+
+/* ── Tablas de importes ─────────────────────────────────── */
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+.partidas, .fases, .pagos, .resumen, .seleccion { font-size: 8.9pt; line-height: 1.42; }
+.partidas th, .fases th, .pagos th, .resumen th, .seleccion th {
+  font: 600 7.3pt "Inter"; letter-spacing: .08em; text-transform: uppercase; color: #fff;
+  background: var(--tinta); text-align: left; padding: 2.3mm 2.4mm; white-space: nowrap; vertical-align: bottom; }
+.partidas td, .fases td, .pagos td, .resumen td, .seleccion td {
+  padding: 1.75mm 2.4mm; border-bottom: .5pt solid var(--linea); vertical-align: top; }
+.partidas tbody tr:nth-child(even):not(.fila-total) td { background: var(--papel); }
+.i, .inv-desglose td { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+th.i { text-align: right; }
+.n, .u, .q, .pct { text-align: center !important; white-space: nowrap; }
+.partidas td.n { color: var(--oro-texto); font-weight: 600; }
+.partidas td.i { font-weight: 500; }
+.c-n { width: 10mm; } .c-u { width: 16mm; } .c-q { width: 18mm; } .c-i { width: 29mm; }
+
+.fila-opcional td { background: #fff !important; border-top: .8pt dashed var(--oro); color: var(--gris); }
+.fila-opcional td.i { color: var(--gris); }
+.etq { display: inline-block; font: 600 6.6pt "Inter"; letter-spacing: .1em; text-transform: uppercase;
+       color: var(--oro-texto); border: .6pt solid var(--oro); padding: .2mm 1.4mm; margin-right: 2mm; vertical-align: .3mm; }
+.fila-total td { font-weight: 600; font-size: 9.6pt; border-top: 1.2pt solid var(--oro); border-bottom: none;
+                 padding-top: 2.8mm; text-transform: none; }
+.fila-total td:nth-child(2) { text-align: right; letter-spacing: .02em; }
+
+.bloque-resumen { break-inside: avoid; margin-top: 6mm; display: flex; gap: 8mm; align-items: flex-start; }
+.resumen { width: 95mm; flex: none; }
+.resumen .fila-cierre td { font-weight: 700; font-size: 10pt; background: var(--oro-claro); border-bottom: 1.2pt solid var(--oro); padding: 2.8mm 2.4mm; }
+.nota-cierre { color: var(--gris); font-size: 8.8pt; margin-top: 1mm; }
+
+/* ── 03 · Plazos y pagos ────────────────────────────────── */
+.fases { margin: 3mm 0 2mm; }
+.c-fase { width: 52mm; } .c-per { width: 42mm; }
+.fases td:first-child { font-weight: 600; }
+.fases td.per { color: var(--oro-texto); font-weight: 600; white-space: nowrap; }
+.h-pagos { margin-top: 8mm; }
+.pagos { margin: 3mm 0 4mm; }
+.c-pago { width: 36mm; } .c-pct { width: 15mm; } .c-imp { width: 38mm; }
+.pagos td.pago { font-weight: 600; white-space: nowrap; }
+.pagos td.pago b { display: inline-block; width: 5mm; height: 5mm; line-height: 5mm; text-align: center; border-radius: 50%;
+                   background: var(--oro); color: #fff; font-size: 7.4pt; margin-right: 2mm; }
+.pagos td.i { font-weight: 600; }
+
+/* ── 04 · Condiciones ───────────────────────────────────── */
+.condiciones .cond p { font-size: 9.3pt; }
+.cond { break-inside: auto; }
+.cond h3 { margin-top: 4.6mm; }
+
+/* ── 05 · Aceptación ────────────────────────────────────── */
+.datos-acept { margin-bottom: 4mm; }
+.seleccion { margin: 3mm 0 4mm; }
+.c-sel { width: 34mm; }
+.seleccion .fila-cierre td { font-weight: 700; font-size: 9.8pt; border-top: 1.2pt solid var(--oro); border-bottom: none; padding-top: 2.6mm; }
+.incl { font-weight: 600; color: var(--oro-texto); }
+.casillas { white-space: nowrap; }
+.casillas i { display: inline-block; width: 3.2mm; height: 3.2mm; border: .8pt solid var(--tinta); margin: 0 1.2mm 0 0; vertical-align: -.4mm; }
+.casillas i + i { margin-left: 3mm; }
+.mas { font-weight: 400; color: var(--gris); font-size: 8pt; }
+
+.cifras-acept { display: flex; flex-wrap: wrap; border-top: .5pt solid var(--linea); margin-bottom: 5mm; }
+.cifras-acept div { width: 33.33%; padding: 2.2mm 0; border-bottom: .5pt solid var(--linea); }
+.cifras-acept dt { font: 500 6.9pt "Inter"; text-transform: uppercase; letter-spacing: .1em; color: var(--gris); }
+.cifras-acept dd { margin: .6mm 0 0; font-weight: 600; }
+
+.firmas { display: flex; gap: 14mm; margin-top: 7mm; break-inside: avoid; }
+.firma { flex: 1; }
+.firma-por { font: 600 7.6pt "Inter"; letter-spacing: .12em; text-transform: uppercase; color: var(--oro-texto); margin-bottom: 0; }
+.firma-linea { height: 20mm; border-bottom: .8pt solid var(--tinta); }
+.firma-nombre { font-weight: 600; margin: 2mm 0 .5mm; }
+.firma-fecha { color: var(--gris); }
+
+/* ── Campos pendientes y marcas de revisión (borrador) ──── */
+.pend { display: inline; color: var(--rev); font-weight: 600; border-bottom: .8pt dotted var(--rev); }
+.pend::before { content: "[ "; } .pend::after { content: " ]"; }
+.rev { display: none; }
+body.borrador .rev { display: block; font-size: 7.8pt; line-height: 1.4; color: var(--rev); border-left: .8mm solid var(--rev);
+                     padding: 1mm 0 1mm 3mm; margin: 2mm 0 3mm; break-inside: avoid; }
+body.borrador .portada-top::before {
+  content: "BORRADOR PARA REVISIÓN · no enviar al cliente";
+  position: absolute; top: -9mm; right: 0; font: 700 7.4pt "Inter"; letter-spacing: .14em; color: var(--rev); }
+.portada-top { position: relative; }
