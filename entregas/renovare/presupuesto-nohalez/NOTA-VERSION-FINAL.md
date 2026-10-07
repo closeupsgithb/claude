@@ -1,6 +1,6 @@
 # Presupuesto Nohalez · Renovare Design & Build — versión final
 
-**Archivo para enviar:** `PRESUPUESTO NOHALEZ - SV-0045-03.pdf` (A4, 7 páginas)
+**Archivo para enviar:** `PRESUPUESTO NOHALEZ - SV-0045-03.pdf` (A4, 8 páginas)
 **Fuente editable:** `fuente/` (HTML + CSS, fuentes Inter y EB Garamond, logotipo original). Para regenerarlo: `python3 fuente/exportar.py`
 **Original sin modificar:** `original/PRESUPUESTO NOHALEZ.pdf`
 
@@ -29,3 +29,16 @@ Las 27 partidas conservan su descripción, unidad, cantidad e importe (verificad
 - **Subida de 240 € sobre la cifra que el cliente pudo ver** (+264 € con IVA). Si se prefiere mantener 46.119 €, hay que corregir alguna partida. No he aplicado ningún descuento inventado.
 - El identificador de la aseguradora «8-11.477.641-F» se mantiene literal; no tiene formato de CIF.
 - «Marca Johnson» (el original decía «Jhonson»).
+
+## Mejoras de la versión 2 (presentación comercial)
+- **Resumen por capítulos** con peso sobre el total y barra proporcional. Los capítulos suman 46.359 € y el 100 %. Agrupación: suelos (2–3), electricidad, fontanería y ayudas (4–6), paredes y techos (10–13), baño (7–8, 18–24), cocina (16–17), puertas y ventanas (9, 14–15), climatización (25), protección y residuos (1, 26).
+- **Portada más directa**: resumen en dos frases y siguiente paso concreto (llamada de Sebastián, teléfono, correo y validez de la oferta).
+- **Seguimiento visual y método de trabajo en 5 pasos**, tomados de la propuesta real de Renovare «PROYECTO BRUNO» (Drive RENOVARE).
+- **Cronograma semanal**. ⚠ Para que no queden semanas vacías, las fases se han hecho contiguas: 1–2, 3–6, 7–9 y 10–12. El original indicaba 1, 5–6, 8–9 y 11–12. Renovare debe validarlo.
+- **Aceptación con comparativa** del proyecto base frente a la versión con puerta principal (base, IVA, total y reserva). Pagos con opción: 9.509,00 € + 950,90 € = 10.459,90 €.
+- Datos para la ejecución en formato compacto.
+
+## Qué no se ha inventado y por qué
+- **Reseñas, años de experiencia, número de obras y plazos de garantía.** Si se presentan como reales al cliente sin serlo, es publicidad engañosa (Directiva Ómnibus y ley de consumidores) y un riesgo para Renovare. Se añaden en cuanto haya datos reales: reseñas de Google, fotos de obras, garantía por escrito.
+- **Correo con dominio.** Renovare usa renovaredyb@gmail.com en sus propuestas. No se conoce ninguna dirección @renovaredyb.com en uso, y una inventada rebotaría.
+- **Mediciones dudosas** (partidas 8, 12–13 y 19): se mantienen sin cambios. Conviene que Renovare las revise antes de enviar.

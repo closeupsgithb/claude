@@ -215,7 +215,7 @@ body.borrador .portada-top::before {
 .portada-top { position: relative; }
 
 /* ── Versión final: pagos con base, IVA y total; opción y campos de firma ── */
-.c-pago { width: 31mm; } .c-base { width: 21mm; } .c-iva { width: 18mm; } .c-tot { width: 22mm; } .pagos .c-pct { width: 11mm; }
+.pagos .c-pago { width: 31mm; } .c-base { width: 21mm; } .c-iva { width: 18mm; } .c-tot { width: 22mm; } .pagos .c-pct { width: 11mm; }
 .pagos { font-size: 8.6pt; }
 .pagos th { padding-left: 2mm; padding-right: 2mm; }
 .pagos td { padding-left: 2mm; padding-right: 2mm; }
@@ -230,3 +230,78 @@ body.borrador .portada-top::before {
 .cifras-acept div { width: 33.33%; }
 .cifras-acept dd.campo { height: 4.6mm; border-bottom: .8pt solid var(--tinta); margin-right: 8mm; }
 .campo-linea { display: inline-block; width: 32mm; border-bottom: .8pt solid var(--gris); vertical-align: -.6mm; margin-left: 1mm; }
+
+/* ── Mejoras v2: método, capítulos, cronograma, comparativa ── */
+.metodo { list-style: none; counter-reset: paso; display: flex; gap: 2.5mm; padding: 0; margin: 4mm 0 1mm; }
+.metodo li { counter-increment: paso; flex: 1; font-size: 7.9pt; line-height: 1.35; color: var(--gris);
+             border-top: .8pt solid var(--oro); padding-top: 2mm; }
+.metodo li::before { content: counter(paso, decimal-leading-zero); display: block; font: 600 7pt "Inter"; color: var(--oro-texto); letter-spacing: .08em; }
+.metodo b { display: block; color: var(--tinta); font-weight: 600; font-size: 8.6pt; margin: .5mm 0 .6mm; }
+
+.capitulos { font-size: 8.9pt; margin: 3mm 0 2mm; }
+.capitulos th { font: 600 7.3pt "Inter"; letter-spacing: .08em; text-transform: uppercase; color: #fff;
+                background: var(--tinta); text-align: left; padding: 2.3mm 2.4mm; white-space: nowrap; }
+.capitulos td { padding: 2.1mm 2.4mm; border-bottom: .5pt solid var(--linea); vertical-align: middle; }
+.capitulos td:first-child { font-weight: 500; }
+.c-pts { width: 23mm; } .c-barra { width: 38mm; } .c-pc { width: 15mm; }
+.capitulos td.pts { color: var(--gris); font-size: 8pt; white-space: nowrap; }
+.capitulos td.barra { padding-right: 1mm; }
+.capitulos td.barra span { display: block; height: 2.6mm; background: #A3843F; border-radius: 0 1mm 1mm 0; }
+.capitulos td.pc { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gris); }
+.capitulos td.i { font-weight: 600; }
+.capitulos .fila-cierre td { font-weight: 700; border-top: 1.2pt solid var(--oro); border-bottom: none; padding-top: 2.6mm; }
+.capitulos .fila-cierre td.pc { color: var(--tinta); }
+.h-detalle { break-before: page; margin-top: 0; }
+
+.gantt { font-size: 8.6pt; margin: 3mm 0 2mm; table-layout: fixed; }
+.gantt th { font: 600 7.2pt "Inter"; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--tinta);
+            text-align: left; padding: 2.2mm 2mm; white-space: nowrap; }
+.gantt th.sem { text-align: center; padding-left: 0; padding-right: 0; letter-spacing: 0; }
+.c-sem { width: 6.3mm; } .gantt .c-fase { width: 72mm; } .gantt .c-per { width: 22mm; }
+.gantt td { border-bottom: .5pt solid var(--linea); padding: 2mm; vertical-align: middle; }
+.gantt td.fase b { display: block; font-weight: 600; }
+.gantt td.fase span { color: var(--gris); font-size: 8pt; }
+.gantt td.per { color: var(--oro-texto); font-weight: 600; white-space: nowrap; }
+.gantt td.sem { padding: 0; border-left: .5pt solid #EFEAE0; }
+.gantt td.sem.on { background: #A3843F; background-clip: content-box; padding: 3.2mm 0; }
+.gantt td.sem.ini { padding-left: .6mm; } .gantt td.sem.fin { padding-right: .6mm; }
+
+.comparativa { font-size: 9pt; margin: 2mm 0 4mm; }
+.comparativa th { font: 600 7.3pt "Inter"; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--tinta);
+                  text-align: left; padding: 2.3mm 2.4mm; white-space: nowrap; }
+.comparativa td { padding: 1.9mm 2.4mm; border-bottom: .5pt solid var(--linea); }
+.c-cmp { width: 42mm; }
+.comparativa .fila-cierre td { font-weight: 700; background: var(--oro-claro); border-bottom: 1.2pt solid var(--oro); }
+.cifras-acept div { width: 50%; }
+.gantt td.sem.on { padding: 0; background: none; }
+.gantt td.sem.on i { display: block; height: 3.4mm; background: #A3843F; }
+.gantt td.sem.ini i { margin-left: .6mm; border-radius: .8mm 0 0 .8mm; }
+.gantt td.sem.fin i { margin-right: .6mm; border-radius: 0 .8mm .8mm 0; }
+.datos-grid { display: flex; flex-wrap: wrap; margin: 1mm 0 0; border-top: .5pt solid var(--linea); }
+.datos-grid div { width: 50%; padding: 1.6mm 0; border-bottom: .5pt solid var(--linea); }
+.datos-grid div.ancho { width: 100%; }
+.datos-grid dt { font: 500 6.9pt "Inter"; text-transform: uppercase; letter-spacing: .1em; color: var(--gris); }
+.datos-grid dd { margin: .4mm 0 0; font-weight: 500; }
+.incluye { margin-top: 4mm; }
+.s-alcance h2 { margin-bottom: 3.5mm; }
+.s-alcance h3 { margin-top: 4mm; }
+.s-alcance p { margin-bottom: 2mm; }
+.s-alcance .incluye { margin: 3mm 0 0; }
+.s-alcance .incluye .col { padding: 3mm 4mm .8mm; }
+.s-alcance .metodo { margin: 3mm 0 0; }
+.s-alcance .metodo li { padding-top: 1.5mm; }
+.gantt td.sem.on:not(.ini) { border-left-color: transparent; }
+.gantt td.sem.on:not(.ini) i { margin-left: -.5pt; }
+.gantt th { border: none; }
+.gantt td.sem.on { border-left: .5pt solid #EFEAE0; }
+.gantt td.sem.on i { margin: 0 .8mm; border-radius: .8mm; }
+.gantt { border-collapse: separate; border-spacing: 0; }
+.fila-opcional td { border-top: none; }
+.fila-grupo td { border-bottom: .8pt dashed var(--oro); }
+.capitulos { border-collapse: separate; border-spacing: 0; }
+.gantt thead tr, .capitulos thead tr { background: var(--tinta); }
+.gantt th, .capitulos th { border: none; background: transparent; }
+.partidas, .pagos, .resumen, .seleccion, .comparativa { border-collapse: separate; border-spacing: 0; }
+.partidas thead tr, .pagos thead tr, .resumen thead tr, .seleccion thead tr, .comparativa thead tr { background: var(--tinta); }
+.partidas th, .pagos th, .resumen th, .seleccion th, .comparativa th { border: none; background: transparent; }
+.fila-grupo td { border-bottom: .6pt solid var(--oro); }
