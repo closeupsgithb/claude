@@ -213,3 +213,20 @@ body.borrador .portada-top::before {
   content: "BORRADOR PARA REVISIÓN · no enviar al cliente";
   position: absolute; top: -9mm; right: 0; font: 700 7.4pt "Inter"; letter-spacing: .14em; color: var(--rev); }
 .portada-top { position: relative; }
+
+/* ── Versión final: pagos con base, IVA y total; opción y campos de firma ── */
+.c-pago { width: 31mm; } .c-base { width: 21mm; } .c-iva { width: 18mm; } .c-tot { width: 22mm; } .pagos .c-pct { width: 11mm; }
+.pagos { font-size: 8.6pt; }
+.pagos th { padding-left: 2mm; padding-right: 2mm; }
+.pagos td { padding-left: 2mm; padding-right: 2mm; }
+.pagos td.i { font-weight: 400; }
+.pagos td.tot { font-weight: 600; }
+.pagos .fila-cierre td { font-weight: 600; border-top: 1.2pt solid var(--oro); border-bottom: none; padding-top: 2.6mm; }
+.pagos .fila-cierre td.tot { font-weight: 700; }
+.fila-grupo td { background: #fff !important; border-bottom: none; padding-top: 5mm; padding-bottom: 1mm;
+                 font: 600 7.2pt "Inter"; letter-spacing: .1em; text-transform: uppercase; color: var(--oro-texto); }
+.partidas .fila-total td { border-bottom: none; }
+.seleccion .mas { font-weight: 600; color: var(--tinta); font-size: 9pt; }
+.cifras-acept div { width: 33.33%; }
+.cifras-acept dd.campo { height: 4.6mm; border-bottom: .8pt solid var(--tinta); margin-right: 8mm; }
+.campo-linea { display: inline-block; width: 32mm; border-bottom: .8pt solid var(--gris); vertical-align: -.6mm; margin-left: 1mm; }
