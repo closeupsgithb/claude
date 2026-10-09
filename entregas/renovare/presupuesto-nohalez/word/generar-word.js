@@ -30,7 +30,8 @@ const SB = { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL
 const B = (grosor, color) => ({ style: BorderStyle.SINGLE, size: bw(grosor), color });
 const LINEA = B(.5, C.linea);
 
-const nb = t => t.replace(/ (€|%|cm|m²|m\b)/g, '\u00A0$1').replace(/(\d)–(\d)/g, '$1\u2060–\u2060$2');
+const nb = t => t.replace(/ (€|%|cm|m²|m\b)/g, '\u00A0$1').replace(/(\d)–(\d)/g, '$1\u2060–\u2060$2')
+  .replace(/\b(\d{3}) (\d{2}) (\d{2}) (\d{2})\b/g, '$1\u00A0$2\u00A0$3\u00A0$4').replace(/\b(\d{3}) (\d{3}) (\d{3})\b/g, '$1\u00A0$2\u00A0$3');
 const r = (text, o = {}) => new TextRun({ text: nb(text), kern: 2, font: o.f || F.I, size: pt(o.s || 9.6), color: o.c || C.tinta,
   bold: o.b, italics: o.i, allCaps: o.caps, characterSpacing: o.sp != null ? Math.round(o.sp * 20) : undefined,
   border: o.border, shading: o.sh ? { type: ShadingType.CLEAR, fill: o.sh, color: 'auto' } : undefined, underline: o.u });
@@ -63,16 +64,16 @@ const fila = (celdas, o = {}) => new TableRow({ children: celdas, cantSplit: tru
 const numSeccion = t => P(r(t, { f: F.IS, s: 7.8, c: C.oroTexto, caps: true, sp: 1.25 }),
   { pb: true, kn: true, lh: 11, af: mm(4), bd: { bottom: { ...B(.6, C.oro), space: 6 } } });
 // h2: EB Garamond 22pt, line-height 1.1, 5 mm debajo
-const h2 = (t, o = {}) => P(r(t, { f: F.G, s: o.s || 22 }), { kn: true, lh: (o.s || 22) * 1.15, af: o.af ?? mm(5), bf: o.bf });
+const h2 = (t, o = {}) => P(r(t, { f: F.G, s: o.s || 22 }), { kn: true, lh: (o.s || 22) * 1.15, af: o.af ?? mm(6), bf: o.bf ?? mm(1) });
 // h3: Inter 10pt seminegrita, cuadro dorado + separación
 const h3 = (t, o = {}) => P([r('■', { f: F.S, s: 11, c: o.c || C.oro }), r(' ' + t, { f: F.IS, s: 10 })],
-  { kn: true, lh: 14, bf: o.bf ?? mm(5.5), af: o.af ?? mm(1.6), pb: o.pb });
+  { kn: true, lh: 14, bf: o.bf ?? mm(7), af: o.af ?? mm(2.2), pb: o.pb });
 // Texto corrido: 9.6pt, line-height 1.5, 2,6 mm entre párrafos
 const T = (t, o = {}) => P(Array.isArray(t) ? t.map(([s, b]) => r(s, { f: b ? F.IS : (o.f || F.I), s: o.s || 9.6, c: o.c })) : r(t, { s: o.s || 9.6, c: o.c, f: o.f }),
-  { lh: (o.s || 9.6) * 1.5, af: o.af ?? mm(2.6), bf: o.bf, al: o.al, kn: o.kn });
+  { lh: (o.s || 9.6) * 1.5, af: o.af ?? mm(3.2), bf: o.bf, al: o.al, kn: o.kn });
 // Rótulo pequeño (eyebrow / dt): mayúsculas con tracking
 const rot = (t, o = {}) => P(r(t, { f: o.f || F.IS, s: o.s || 7.6, c: o.c || C.oroTexto, caps: true, sp: o.sp ?? 1 }),
-  { lh: (o.s || 7.6) * 1.4, af: o.af ?? 0, bf: o.bf, kn: true, al: o.al });
+  { lh: (o.s || 7.6) * 1.4, af: o.af ?? 0, bf: o.bf, kn: o.kn ?? true, al: o.al });
 
 // Tablas de datos (.partidas, .pagos…): cabecera 7.3pt, celdas 8.9pt, rellenos 2,3/1,75 × 2,4 mm
 const TD = { s: 8.9, lh: 12.6, pv: mm(1.75), ph: mm(2.4) };
@@ -159,7 +160,7 @@ portada.push(tabla([fila([
 portada.push(rot('Propuesta comercial', { s: 7.8, sp: 1.25, bf: mm(7), af: mm(2.5) }));
 portada.push(P(r('Presupuesto de reforma', { f: F.G, s: 29 }), { lh: 33, af: mm(1) }));
 portada.push(P(r('Reforma integral en Valencia', { f: F.G, s: 13.5, i: true, c: C.oroTexto }), { lh: 17, af: mm(5) }));
-const fichaC = (l, v, w, o = {}) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7 }),
+const fichaC = (l, v, w, o = {}) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7, kn: false }),
   P(r(v, { f: o.big ? F.IS : F.IM, s: o.big ? 12 : 9.6 }), { lh: o.big ? 16 : 14, bf: mm(.5) })],
   { w, span: o.span, pt: o.pt ?? 0, pb: o.pb ?? 0, pr: mm(3), bt: o.bt, bb: o.bb });
 const wf = [mm(64), mm(31), mm(28), W - mm(64) - mm(31) - mm(28)];
@@ -182,30 +183,32 @@ portada.push(tabla([fila([
   celda(tabla([desg('Base imponible', '46.359,00 €'), desg('IVA 10 %', '4.635,90 €'), desg('Total IVA incluido', '50.994,90 €', true)], [mm(40), mm(32)]),
     { w: W / 2, fill: C.papel, va: VerticalAlign.CENTER, br: B(.6, C.linea), bt: B(.6, C.linea), bb: B(.6, C.linea), pt: mm(4), pb: mm(4), pl: mm(5), pr: mm(6) }),
 ])], [W / 2, W / 2]));
-const colW = Math.round((W - mm(8)) / 2);
-const dlRow = (l, v) => fila([
-  td(r(l, { s: 9.6, c: C.gris }), mm(30), { pl: 0, pr: mm(1), pt: mm(1.2), pb: mm(1.2), lh: 14 }),
-  td(r(v, { f: F.IM, s: 9.6 }), colW - mm(30), { pl: 0, pr: 0, pt: mm(1.2), pb: mm(1.2), lh: 14 })]);
-const dl = pares => tabla(pares.map(([l, v]) => dlRow(l, v)), [mm(30), colW - mm(30)]);
-portada.push(tabla([fila([
-  celda([h3('Alcance principal', { bf: 0 }), dl([['Espacios', 'Salón, baño, cocina y habitaciones'], ['Superficie intervenida', '75 m²'], ['Tipo de inmueble', 'Apartamento']])], { w: colW, pt: mm(5) }),
-  celda(vacio(), { w: W - 2 * colW }),
-  celda([h3('Planificación', { bf: 0 }), dl([['Duración base', '10–12 semanas'], ['Inicio previsto', '2 de noviembre de 2026'], ['Responsable', 'Sebastián Vanegas · Jefe de obra'], ['Contacto', '624 892 643']])], { w: colW, pt: mm(5) }),
-])], [colW, W - 2 * colW, colW]));
+// Alcance principal / Planificación: una sola tabla de 5 columnas para que las filas queden alineadas
+const wk = [mm(37), mm(44), mm(8), mm(29), 0]; wk[4] = W - wk.slice(0, 4).reduce((x, y) => x + y, 0);
+const IZQ = [['Espacios', 'Salón, baño, cocina y habitaciones'], ['Superficie intervenida', '75 m²'], ['Tipo de inmueble', 'Apartamento'], ['', '']];
+const DER = [['Duración base', '10–12 semanas'], ['Inicio previsto', '2 de noviembre de 2026'], ['Responsable', 'Sebastián Vanegas · Jefe de obra'], ['Contacto', '624 892 643']];
+const kv = (t, w, o = {}) => td(r(t, { f: o.v ? F.IM : F.I, s: 9.6, c: o.v ? C.tinta : C.gris }), w, { pl: 0, pr: mm(2), pt: mm(1.5), pb: mm(1.5), lh: 14, bb: o.bb, va: VerticalAlign.CENTER });
+portada.push(vacio({ bf: mm(6) }));
+portada.push(tabla([
+  fila([celda(h3('Alcance principal', { bf: 0, af: mm(1.5) }), { w: wk[0] + wk[1], span: 2 }), celda(vacio(), { w: wk[2] }),
+    celda(h3('Planificación', { bf: 0, af: mm(1.5) }), { w: wk[3] + wk[4], span: 2 })]),
+  ...IZQ.map(([l1, v1], i) => { const [l2, v2] = DER[i]; const bi = l1 ? LINEA : NIL;
+    return fila([kv(l1, wk[0], { bb: bi }), kv(v1, wk[1], { v: true, bb: bi }), celda(vacio(), { w: wk[2] }), kv(l2, wk[3]), kv(v2, wk[4], { v: true })]); }),
+], wk));
 const caja = (titulo, cuerpo, bf) => [vacio({ bf }), tabla([fila([celda([rot(titulo, { s: 7.4, sp: 1.04, af: mm(1) }), T(cuerpo, { af: 0 })],
   { w: W, fill: C.oroClaro, pt: mm(3.6), pb: mm(3.6), pl: mm(5), pr: mm(5) })])], [W])];
 portada.push(...caja('Siguiente paso', 'Para avanzar, revisamos juntos el alcance, resolvemos las dudas y confirmamos las opciones elegidas antes de formalizar la aceptación. Sebastián Vanegas le llamará para acordar esa revisión; también puede contactarle directamente en el 624 892 643 o en renovaredyb@gmail.com. Oferta válida hasta el 07/11/2026.', mm(5)));
 
 // ════════ 01 · ALCANCE ════════
-const s1 = [numSeccion('01 · Proyecto y resumen ejecutivo'), h2('Alcance y coordinación', { af: mm(3.5) })];
-const h3a = (t, o = {}) => h3(t, { bf: mm(4), ...o });
-const Ta = (t, o = {}) => T(t, { af: mm(2), ...o });
+const s1 = [numSeccion('01 · Proyecto y resumen ejecutivo'), h2('Alcance y coordinación', { af: mm(4.5) })];
+const h3a = (t, o = {}) => h3(t, { bf: mm(5), ...o });
+const Ta = (t, o = {}) => T(t, { af: mm(2.4), ...o });
 s1.push(h3a('Qué vamos a transformar', { bf: 0 }));
 s1.push(Ta('Realizaremos una reforma integral de la vivienda para renovar sus espacios, instalaciones y acabados. Actualizaremos la cocina y el baño, incluyendo mobiliario y equipamiento. Renovaremos la electricidad y la fontanería, nivelaremos los suelos y aplicaremos microcemento. Completaremos la transformación con alisado y pintura, sustitución de las puertas y ventanas indicadas e instalación de aire acondicionado, para lograr una vivienda más funcional y confortable.'));
 const wInc = Math.round((W - mm(6)) / 2);
 const cajaInc = (t, cuerpo, color) => celda([h3(t, { bf: 0, c: color }), Ta(cuerpo, { af: mm(.8) })],
   { w: wInc, fill: C.papel, bt: B(.8, color), pt: mm(3), pb: mm(1), pl: mm(4), pr: mm(4) });
-s1.push(vacio({ bf: mm(1) }));
+s1.push(vacio({ bf: mm(.5) }));
 s1.push(tabla([fila([
   cajaInc('Incluido en el proyecto base', [['Los trabajos, materiales y suministros detallados en la tabla del apartado '], ['02 · Inversión', true], [', según las condiciones indicadas en cada partida. Las partidas opcionales se incorporarán únicamente si el cliente las acepta expresamente.']], C.oro),
   celda(vacio(), { w: W - 2 * wInc }),
@@ -218,43 +221,41 @@ s1.push(Ta('El responsable, Sebastián Vanegas, centraliza las consultas y coord
 s1.push(Ta('Seguimiento visual: fotografías periódicas del avance con un resumen de trabajos realizados y próximos pasos. Si la obra lo permite y se autoriza expresamente, puede añadirse una cámara fija con acceso restringido, sin audio y sin captar espacios ajenos a la actuación.'));
 const PASOS = [['Revisión', 'Visita, medición y definición de necesidades'], ['Planificación', 'Fases, coordinación y previsión de medios'], ['Preparación', 'Protecciones y organización de la zona de trabajo'], ['Ejecución', 'Desarrollo de los trabajos y seguimiento acordado'], ['Entrega', 'Revisión final, limpieza y cierre del proyecto']];
 const gap = mm(2.5), wPaso = Math.floor((W - 4 * gap) / 5), wUlt = W - 4 * gap - 4 * wPaso;
-s1.push(vacio({ bf: mm(1) }));
+s1.push(vacio({ bf: mm(3) }));
 s1.push(tabla([fila(PASOS.flatMap(([t, d], i) => {
   const c = celda([P(r(`0${i + 1}`, { f: F.IS, s: 7, c: C.oroTexto, sp: .56 }), { lh: 10 }), P(r(t, { f: F.IS, s: 8.6 }), { lh: 12, bf: mm(.5), af: mm(.6) }), P(r(d, { s: 7.9, c: C.gris }), { lh: 10.7 })],
     { w: i < 4 ? wPaso : wUlt, bt: B(.8, C.oro), pt: mm(1.5) });
   return i < 4 ? [c, celda(vacio(), { w: gap })] : [c];
 }))], [wPaso, gap, wPaso, gap, wPaso, gap, wPaso, gap, wUlt]));
 s1.push(h3a('Datos para la ejecución'));
-const dato = (l, v, w, span) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r(v, { f: F.IM, s: 9.6 }), { lh: 14, bf: mm(.4) })],
-  { w, span, bb: LINEA, pt: mm(1.6), pb: mm(1.6), pr: mm(2) });
+const dato = (l, v, w, span) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7, kn: false }), P(r(v, { f: F.IM, s: 9.6 }), { lh: 14, bf: mm(.4) })],
+  { w, span, bb: LINEA, pt: mm(1.2), pb: mm(1.2), pr: mm(2) });
+const wd = [mm(66), mm(40), 0]; wd[2] = W - wd[0] - wd[1];
 s1.push(tabla([
-  fila([dato('Cliente', 'Cristian Nohalez García · 607 23 86 30', W / 2), dato('Empresa', 'Renovare Design & Build SL · CIF B-88775341', W / 2)]),
-  fila([dato('Domicilio', 'Calle Creu Roja 1, bajo · Benetússer', W / 2), dato('Contacto comercial', 'Sebastián Vanegas', W / 2)]),
-  fila([dato('Acceso, horarios y ocupación del inmueble', 'Lunes a viernes, de 8:00 a 17:00', W, 2)]),
-], [W / 2, W / 2]));
+  fila([dato('Cliente', 'Cristian Nohalez García · 607 23 86 30', wd[0]), dato('Empresa', 'Renovare Design & Build SL · CIF B-88775341', wd[1] + wd[2], 2)]),
+  fila([dato('Domicilio', 'Calle Creu Roja 1, bajo · Benetússer', wd[0]), dato('Contacto comercial', 'Sebastián Vanegas', wd[1]),
+    dato('Acceso, horarios y ocupación del inmueble', 'Lunes a viernes, de 8:00 a 17:00', wd[2])]),
+], wd));
 
 // ════════ 02 · INVERSIÓN ════════
 const s2 = [numSeccion('02 · Inversión'), h2('Resumen económico')];
 s2.push(T('Dónde se invierte cada euro del proyecto base, agrupado por capítulos. El detalle de cada partida figura a continuación.'));
-const wc = [0, mm(22), mm(36), mm(18), mm(29)]; wc[0] = W - wc.slice(1).reduce((a, b) => a + b, 0);
-const barraMax = wc[2] - TD.ph - mm(1);
-// Barra proporcional: minitabla de dos celdas (se ajusta arrastrando su borde central)
-const barra = pc => { const l = Math.max(mm(1.2), Math.round(pc / 24.2 * barraMax)), v = barraMax - l;
-  const c = (w, fill) => celda(vacio(), { w, fill });
-  return new Table({ rows: [new TableRow({ height: { value: mm(2.6), rule: HeightRule.EXACT }, children: v > 0 ? [c(l, C.barra), c(v)] : [c(l, C.barra)] })],
-    columnWidths: v > 0 ? [l, v] : [l], width: { size: barraMax, type: WidthType.DXA }, layout: TableLayoutType.FIXED, borders: SB }); };
+const wc = [0, mm(28), mm(28), mm(30)]; wc[0] = W - wc.slice(1).reduce((a, b) => a + b, 0);
 s2.push(tabla([
-  fila([th('Capítulo', wc[0]), th('Partidas', wc[1]), th('Peso sobre el total', wc[2] + wc[3], { span: 2 }), th('Sin IVA', wc[4], { al: R })], { th: true }),
+  fila([th('Capítulo', wc[0]), th('Partidas', wc[1]), th('% del total', wc[2], { al: R }), th('Sin IVA', wc[3], { al: R })], { th: true }),
   ...CAPITULOS.map(([n, p, pc, s]) => fila([
     td(r(n, { f: F.IM, s: 8.9 }), wc[0], { va: VerticalAlign.CENTER }),
-    td(r(p, { s: 8, c: C.gris }), wc[1], { va: VerticalAlign.CENTER }),
-    td([barra(pc), vacio()], wc[2], { va: VerticalAlign.CENTER, pr: mm(1) }),
-    td(r(`${pc.toFixed(1).replace('.', ',')} %`, { s: 8.9, c: C.gris }), wc[3], { al: R, va: VerticalAlign.CENTER, pl: mm(1) }),
-    td(r(s, { f: F.IS, s: 8.9 }), wc[4], { al: R, va: VerticalAlign.CENTER }),
+    td(r(p, { s: 8.6, c: C.gris }), wc[1], { va: VerticalAlign.CENTER }),
+    td(r(`${pc.toFixed(1).replace('.', ',')} %`, { s: 8.9, c: C.gris }), wc[2], { al: R, va: VerticalAlign.CENTER }),
+    td(r(s, { f: F.IS, s: 8.9 }), wc[3], { al: R, va: VerticalAlign.CENTER }),
   ])),
-  fila([td(r('Total proyecto base', { s: 8.9, b: true }), wc[0], cierre), td('', wc[1], cierre), td('', wc[2], cierre),
-    td(r('100 %', { s: 8.9, b: true }), wc[3], { ...cierre, al: R }), td(r('46.359 €', { s: 8.9, b: true }), wc[4], { ...cierre, al: R })]),
+  fila([td(r('Total proyecto base', { s: 8.9, b: true }), wc[0], cierre), td('', wc[1], cierre),
+    td(r('100 %', { s: 8.9, b: true }), wc[2], { ...cierre, al: R }), td(r('46.359 €', { s: 8.9, b: true }), wc[3], { ...cierre, al: R })]),
 ], wc));
+// Gráfico de barras nativo de Word: se inserta en este marcador (insertar-grafico.py).
+// Sus datos se editan con clic derecho › Editar datos; los % se recalculan solos a partir de los importes.
+s2.push(rot('Peso de cada capítulo sobre el total', { f: F.IS, s: 7.4, sp: .9, bf: mm(7), af: mm(1.5) }));
+s2.push(P(r('§GRAFICO_CAPITULOS§', { s: 8 }), { lh: 12 }));
 const wr = [mm(95) - mm(32), mm(32)];
 const resumen = tabla([
   fila([th('Concepto', wr[0]), th('Importe', wr[1], { al: R })], { th: true }),
@@ -264,7 +265,7 @@ const resumen = tabla([
     td(r('50.994,90 €', { s: 10, b: true }), wr[1], { fill: C.oroClaro, bb: B(1.2, C.oro), al: R, pt: mm(2.8), pb: mm(2.8) })]),
 ], wr);
 const nota = (t, o = {}) => P(r(t, { s: 8.8, c: C.gris }), { lh: 13.2, af: o.af ?? mm(2.6), bf: o.bf });
-s2.push(vacio({ bf: mm(6) }));
+s2.push(vacio({ bf: mm(7) }));
 s2.push(tabla([fila([celda(resumen, { w: mm(95) }), celda(vacio(), { w: mm(8) }),
   celda([nota('El total es cerrado para las mediciones, trabajos y calidades definidos en esta oferta. Cualquier modificación se tramita conforme al procedimiento de cambios de la página de condiciones.', { bf: mm(1) }),
     nota('Opción no incluida: puerta principal, 1.186 € sin IVA (partida 27).', { af: 0 })], { w: W - mm(103) })])], [mm(95), mm(8), W - mm(103)]));
@@ -322,7 +323,7 @@ s3.push(tabla([
     tdp(r('46.359,00 €', { f: F.IS, s: 8.6 }), wpg[3], { ...cierre, al: R }), tdp(r('4.635,90 €', { f: F.IS, s: 8.6 }), wpg[4], { ...cierre, al: R }),
     tdp(r('50.994,90 €', { s: 8.6, b: true }), wpg[5], { ...cierre, al: R })]),
 ], wpg));
-s3.push(T('Cada solicitud de pago se acompaña de la factura correspondiente y, en los avances, del registro de trabajos realizados. Medio de pago: transferencia bancaria a la cuenta de Renovare Design & Build SL que figura en cada factura.', { bf: mm(4) }));
+s3.push(T('Cada solicitud de pago se acompaña de la factura correspondiente y, en los avances, del registro de trabajos realizados. Medio de pago: transferencia bancaria a la cuenta de Renovare Design & Build SL que figura en cada factura.', { bf: mm(6) }));
 s3.push(nota('Si se acepta la puerta principal, cada pago pasa a 9.509,00 € + 950,90 € de IVA = 10.459,90 €.'));
 
 // ════════ 04 · CONDICIONES ════════
@@ -332,8 +333,8 @@ CONDICIONES.forEach(([t, ps], i) => { s4.push(h3(t, { bf: i ? mm(4.2) : 0 })); p
 // ════════ 05 · ACEPTACIÓN ════════
 const s5 = [numSeccion('05 · Aceptación'), h2('Aceptación de la propuesta')];
 s5.push(tabla([['Cliente', 'Cristian Nohalez García · DNI o NIF 03151845V'], ['Obra', 'Calle Barig 3, Benicalap · 46025'], ['Oferta', 'SV-0045-03 · Fecha 07/10/2026']]
-  .map(([l, v], i) => fila([td(r(l, { s: 9.6, c: C.gris }), mm(52), { pl: 0, pt: mm(1.7), pb: mm(1.7), lh: 14, bt: i ? undefined : LINEA }),
-    td(r(v, { f: F.IM, s: 9.6 }), W - mm(52), { pl: 0, pt: mm(1.7), pb: mm(1.7), lh: 14, bt: i ? undefined : LINEA })])), [mm(52), W - mm(52)]));
+  .map(([l, v], i) => fila([td(r(l, { s: 9.6, c: C.gris }), mm(52), { pl: 0, pt: mm(1.4), pb: mm(1.4), lh: 14, bt: i ? undefined : LINEA }),
+    td(r(v, { f: F.IM, s: 9.6 }), W - mm(52), { pl: 0, pt: mm(1.4), pb: mm(1.4), lh: 14, bt: i ? undefined : LINEA })])), [mm(52), W - mm(52)]));
 s5.push(T('Se acepta el proyecto base y únicamente las opciones marcadas a continuación. Las alternativas no marcadas quedan fuera del encargo.', { bf: mm(4), af: mm(3) }));
 const wsel = [mm(34), 0, mm(38)]; wsel[1] = W - wsel[0] - wsel[2];
 const casilla = () => r('□', { f: F.S, s: 11 });
@@ -343,25 +344,25 @@ s5.push(tabla([
   fila([td([casilla(), r(' Sí      ', { s: 8.9 }), casilla(), r(' No', { s: 8.9 })], wsel[0]), td('Opción · Partida 27. Puerta principal: suministro e instalación', wsel[1]), td('1.186,00 €', wsel[2], { al: R })]),
 ], wsel));
 const wcmp = [0, mm(42), mm(42)]; wcmp[0] = W - wcmp[1] - wcmp[2];
-s5.push(vacio({ bf: mm(3) }));
+s5.push(vacio({ bf: mm(5) }));
 s5.push(tabla([
   fila([th('Importe contratado', wcmp[0]), th('Proyecto base', wcmp[1], { al: R }), th('Con puerta principal', wcmp[2], { al: R })], { th: true }),
   ...[['Base imponible', '46.359,00 €', '47.545,00 €'], ['IVA 10 %', '4.635,90 €', '4.754,50 €'], ['Total con IVA', '50.994,90 €', '52.299,50 €', true], ['Reserva del 20 % (IVA incluido)', '10.198,98 €', '10.459,90 €']]
     .map(([l, a, b, t]) => fila([l, a, b].map((v, i) => td(r(v, { s: 9, b: t }), wcmp[i], { al: i ? R : undefined, fill: t ? C.oroClaro : undefined, bb: t ? B(1.2, C.oro) : LINEA, pt: mm(1.9), pb: mm(1.9) })))),
 ], wcmp));
-s5.push(vacio({ bf: mm(4) }));
+s5.push(vacio({ bf: mm(5) }));
 s5.push(tabla([fila([
-  celda([rot('Inicio acordado', { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(1.5), bd: { bottom: B(.8, C.tinta) } })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2), pr: mm(8) }),
-  celda([rot('Duración acordada', { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r('12 semanas', { f: F.IS, s: 9.6 }), { lh: 14, bf: mm(.6) })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2) }),
+  celda([rot('Inicio acordado', { f: F.IM, s: 6.9, c: C.gris, sp: .7, kn: false }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(1.5), bd: { bottom: B(.8, C.tinta) } })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2), pr: mm(8) }),
+  celda([rot('Duración acordada', { f: F.IM, s: 6.9, c: C.gris, sp: .7, kn: false }), P(r('12 semanas', { f: F.IS, s: 9.6 }), { lh: 14, bf: mm(.6) })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2) }),
 ])], [W / 2, W / 2]));
 s5.push(T('Declaramos haber revisado el alcance, las exclusiones, los materiales, los importes con IVA, el calendario y los hitos de pago. Los puntos que afectaban al precio o al alcance están resueltos y reflejados en esta versión.', { bf: mm(5) }));
 const wfir = Math.round((W - mm(14)) / 2);
-const firma = (por, nombre) => celda([rot(por, { s: 7.6, sp: .9 }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(15), bd: { bottom: B(.8, C.tinta) } }),
+const firma = (por, nombre) => celda([rot(por, { s: 7.6, sp: .9, kn: false }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(11), bd: { bottom: B(.8, C.tinta) } }),
   P(r(nombre, { f: F.IS, s: 9.6 }), { lh: 14, bf: mm(2) }),
   P(r('Fecha   ______ / ______ / ____________', { s: 9.6, c: C.gris }), { lh: 14, bf: mm(1.5) })], { w: wfir });
-s5.push(vacio({ bf: mm(5) }));
+s5.push(vacio({ bf: mm(6) }));
 s5.push(tabla([fila([firma('Por el cliente', 'Cristian Nohalez García'), celda(vacio(), { w: W - 2 * wfir }), firma('Por Renovare Design & Build SL', 'Sebastián Vanegas · Administrador')])], [wfir, W - 2 * wfir, wfir]));
-s5.push(...caja('Después de la firma', 'Tras la firma y el pago de reserva, confirmamos por escrito la fecha de inicio y coordinamos el calendario definitivo y las elecciones necesarias.', mm(6)));
+s5.push(...caja('Después de la firma', 'Tras la firma y el pago de reserva, confirmamos por escrito la fecha de inicio y coordinamos el calendario definitivo y las elecciones necesarias.', mm(5)));
 
 // ════════ Cabecera y pie ════════
 const pie = () => new Footer({ children: [P([

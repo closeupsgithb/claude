@@ -51,7 +51,9 @@ Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (8 páginas, A4). Calcado del P
 - **Referencia de cabecera**: doble clic en la cabecera de cualquier página interior; se actualiza en todas.
 - **Partidas**: cursor en una fila › Insertar fila debajo. La cabecera oscura se repite sola en cada página y las filas no se parten.
 - **Cronograma**: la barra de cada fase son las celdas sombreadas de su fila central; para mover una fase, aplicar o quitar el sombreado (dorado #A3843F) en las semanas correspondientes y cambiar el texto «Sem.».
-- **Barras de capítulos**: minitabla de dos celdas; ajustar arrastrando el borde entre la parte dorada y la vacía.
+- **Gráfico de capítulos**: es un gráfico nativo de Word. Clic derecho › *Editar datos*: se abre su hoja con el importe de cada capítulo; el % se calcula solo (importe ÷ total) y las barras se ajustan. La tabla de capítulos encima se actualiza a mano con las mismas cifras.
 - **Importes**: no se recalculan solos. Revisar base, IVA, total, capítulos y %, pagos y comparativa de aceptación.
 
-Regenerar desde código: `cd word && NODE_PATH=$(npm root -g) node generar-word.js && python3 incrustar-fuentes.py`.
+- **Si las páginas se ven «pegadas» en Word** (sin cabecera ni márgenes entre una página y otra): es la vista «ocultar espacio en blanco». Doble clic en la línea gris entre páginas, o Archivo › Opciones › Mostrar › activar «Mostrar espacio en blanco entre las páginas en la vista Diseño de impresión».
+
+Regenerar desde código: `cd word && NODE_PATH=$(npm root -g) node generar-word.js && python3 incrustar-fuentes.py && python3 insertar-grafico.py`.
