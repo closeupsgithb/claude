@@ -44,15 +44,14 @@ Las 27 partidas conservan su descripción, unidad, cantidad e importe (verificad
 - **Mediciones dudosas** (partidas 8, 12–13 y 19): se mantienen sin cambios. Conviene que Renovare las revise antes de enviar.
 
 ## Versión Word editable (plantilla para futuros presupuestos)
-Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (8 páginas, A4). Se regenera con `word/generar-word.js`.
+Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (8 páginas, A4). Calcado del PDF: mismas tipografías, colores, márgenes, espaciados y tablas.
 
-Cómo reutilizarlo:
-1. Guardar una copia con el nombre del nuevo cliente y la nueva referencia.
-2. Cambiar la cabecera (referencia) una sola vez: Insertar › Encabezado › Editar. Se actualiza en todas las páginas. La portada no lleva cabecera.
-3. Sustituir los textos de cliente, obra, fechas, partidas e importes. **Los totales no se calculan solos**: base, IVA, total con IVA, capítulos, pagos y comparativa deben revisarse a mano.
-4. Para añadir partidas: situar el cursor en una fila de la tabla › Insertar fila debajo. La cabecera oscura se repite sola en cada página y las filas no se parten entre páginas.
-5. Cronograma: cada semana es una celda. Para mover o alargar una fase, copiar la barra dorada a las celdas de las semanas correspondientes o borrarla de las que sobren.
-6. Barras de capítulos: son una minitabla de dos celdas; se ajustan arrastrando el borde entre la parte dorada y la vacía.
-7. Estilos del documento: «Título presupuesto», «Rótulo de sección» (empieza página nueva), «Título de sección» y «Subtítulo». Aplicándolos se mantiene la identidad.
+- **Fuentes incrustadas** (Inter y EB Garamond) en el propio archivo: se ve igual en cualquier ordenador sin instalar nada. Si Word avisa al abrir, aceptar. Para conservarlas al guardar: Archivo › Opciones › Guardar › «Incrustar fuentes en el archivo» (ya viene activado).
+- **Para un nuevo presupuesto**: guardar una copia y sustituir los textos. Todo el diseño está en tablas y párrafos ya formateados; al escribir encima se conserva el estilo.
+- **Referencia de cabecera**: doble clic en la cabecera de cualquier página interior; se actualiza en todas.
+- **Partidas**: cursor en una fila › Insertar fila debajo. La cabecera oscura se repite sola en cada página y las filas no se parten.
+- **Cronograma**: la barra de cada fase son las celdas sombreadas de su fila central; para mover una fase, aplicar o quitar el sombreado (dorado #A3843F) en las semanas correspondientes y cambiar el texto «Sem.».
+- **Barras de capítulos**: minitabla de dos celdas; ajustar arrastrando el borde entre la parte dorada y la vacía.
+- **Importes**: no se recalculan solos. Revisar base, IVA, total, capítulos y %, pagos y comparativa de aceptación.
 
-Fuentes: Garamond (títulos) y Calibri (texto), incluidas con Microsoft Office en Windows y Mac. El PDF de diseño usa EB Garamond e Inter. El Word usa sus equivalentes estándar para que se vea igual en cualquier ordenador sin instalar nada.
+Regenerar desde código: `cd word && NODE_PATH=$(npm root -g) node generar-word.js && python3 incrustar-fuentes.py`.

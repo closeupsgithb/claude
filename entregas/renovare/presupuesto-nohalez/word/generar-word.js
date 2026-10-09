@@ -1,65 +1,88 @@
-// Genera "PRESUPUESTO NOHALEZ - SV-0045-03.docx" con la identidad de Renovare.
-// Uso: NODE_PATH=$(npm root -g) node generar-word.js
-// El .docx resultante es la plantilla editable: se trabaja directamente en Word.
+// Genera la versión Word del presupuesto, calcada del PDF (fuente/estilos.css).
+// Uso:  NODE_PATH=$(npm root -g) node generar-word.js && python3 incrustar-fuentes.py
+// Todas las medidas se convierten desde la hoja de estilos del PDF (mm → twips, pt → medios puntos).
 const fs = require('fs');
 const path = require('path');
 const {
   Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, Header, Footer,
   AlignmentType, WidthType, BorderStyle, ShadingType, VerticalAlign, PageNumber, TabStopType,
-  TableLayoutType, HeightRule,
+  TableLayoutType, HeightRule, LineRuleType,
 } = require('docx');
 
-// ── Sistema de marca ─────────────────────────────────────────────
+// ── Unidades ─────────────────────────────────────────────────────
+const mm = v => Math.round(v * 56.693);           // mm → twips
+const pt = v => Math.round(v * 2);                // pt → medios puntos (tamaño de letra)
+const ls = v => Math.round(v * 20);               // pt → twips (interlineado)
+const bw = v => Math.max(2, Math.round(v * 8));   // grosor de borde en pt → octavos de punto
+
+// ── Marca (mismos tokens que el PDF) ─────────────────────────────
 const C = { tinta: '1C1A16', oro: 'BA9A58', oroTexto: '85692F', gris: '625B50', linea: 'E2DBCD',
             papel: 'FAF8F4', oroClaro: 'F3ECDD', barra: 'A3843F', blanco: 'FFFFFF', semana: 'EFEAE0' };
-const F = { titulo: 'Garamond', texto: 'Calibri' };
-const W = 9638;                                  // ancho útil A4 con márgenes de 20 mm (DXA)
+const F = { G: 'EB Garamond Medium', I: 'Inter', IM: 'Inter Medium', IS: 'Inter SemiBold', S: 'Arial' };
+const W = 11906 - 2 * mm(20);                       // ancho útil
 const LOGO = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'assets', 'logo-renovare.png'));
-const LOGO_RATIO = 246 / 633;
+const LOGO_R = 246 / 633;
+const px = v => Math.round(v * 96 / 25.4);          // mm → píxeles (imágenes)
 
-// ── Utilidades ───────────────────────────────────────────────────
-const NONE = { style: BorderStyle.NIL, size: 0, color: 'auto' };
-const SIN_BORDES = { top: NONE, bottom: NONE, left: NONE, right: NONE, insideHorizontal: NONE, insideVertical: NONE };
-const linea = (color = C.linea, size = 4) => ({ style: BorderStyle.SINGLE, size, color });
+// ── Primitivas ───────────────────────────────────────────────────
+const NIL = { style: BorderStyle.NIL, size: 0, color: 'auto' };
+const SB = { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL };
+const B = (grosor, color) => ({ style: BorderStyle.SINGLE, size: bw(grosor), color });
+const LINEA = B(.5, C.linea);
 
-const run = (text, o = {}) => new TextRun({ text, font: o.font || F.texto, size: o.size || 20, bold: o.bold,
-  italics: o.italics, color: o.color || C.tinta, characterSpacing: o.spacing, allCaps: o.caps, shading: o.shading });
-const para = (children, o = {}) => new Paragraph({
-  children: (Array.isArray(children) ? children : [children]).map(c => typeof c === 'string' ? run(c, o) : c),
-  alignment: o.align, spacing: { before: o.before ?? 0, after: o.after ?? 100, line: o.line ?? 264, lineRule: 'auto' },
-  keepNext: o.keepNext, keepLines: o.keepLines, pageBreakBefore: o.pageBreakBefore, border: o.border,
-  style: o.style, indent: o.indent, tabStops: o.tabStops,
+const nb = t => t.replace(/ (€|%|cm|m²|m\b)/g, '\u00A0$1').replace(/(\d)–(\d)/g, '$1\u2060–\u2060$2');
+const r = (text, o = {}) => new TextRun({ text: nb(text), kern: 2, font: o.f || F.I, size: pt(o.s || 9.6), color: o.c || C.tinta,
+  bold: o.b, italics: o.i, allCaps: o.caps, characterSpacing: o.sp != null ? Math.round(o.sp * 20) : undefined,
+  border: o.border, shading: o.sh ? { type: ShadingType.CLEAR, fill: o.sh, color: 'auto' } : undefined, underline: o.u });
+// Párrafo: interlineado "al menos" (equivale a line-height del PDF sin recortar)
+const P = (runs, o = {}) => new Paragraph({
+  children: (Array.isArray(runs) ? runs : [runs]).map(x => typeof x === 'string' ? r(x, o) : x),
+  alignment: o.al, keepNext: o.kn, keepLines: true, pageBreakBefore: o.pb, border: o.bd, tabStops: o.tabs,
+  spacing: { before: o.bf || 0, after: o.af ?? 0, line: o.lh != null ? ls(o.lh) : undefined,
+             lineRule: o.lh != null ? (o.exact ? LineRuleType.EXACT : LineRuleType.AT_LEAST) : undefined },
 });
-const etiqueta = (text, o = {}) => para(run(text, { size: o.size || 15, bold: true, color: o.color || C.oroTexto, caps: true, spacing: 30 }),
-  { after: o.after ?? 40, before: o.before ?? 0, keepNext: true, align: o.align });
+const vacio = (o = {}) => P(r('', { s: o.s || 2 }), { lh: o.lh || 1, exact: true, ...o });
 
-// Rótulo de sección + título grande (inicia página nueva)
-const seccion = (num, titulo) => [
-  new Paragraph({ style: 'Seccion', pageBreakBefore: true, children: [run(num, { size: 16, bold: true, color: C.oroTexto, caps: true, spacing: 36 })] }),
-  new Paragraph({ style: 'Titulo2', children: [new TextRun(titulo)] }),
-];
-// Subtítulo con cuadro dorado
-const h3 = (text, o = {}) => new Paragraph({ style: 'Titulo3', spacing: { before: o.before ?? 200, after: 60 },
-  children: [run('■  ', { size: 16, color: o.color || C.oro, bold: true }), new TextRun(text)] });
-
-const cell = (children, o = {}) => new TableCell({
-  children: (Array.isArray(children) ? children : [children]).map(c => typeof c === 'string' ? para(c, { after: 0, ...o.p }) : c),
-  width: { size: o.w, type: WidthType.DXA }, columnSpan: o.span, verticalAlign: o.v || VerticalAlign.TOP,
-  shading: o.fill ? { fill: o.fill, type: ShadingType.CLEAR, color: 'auto' } : undefined,
-  borders: o.borders || { top: NONE, left: NONE, right: NONE, bottom: o.bottom || linea() },
-  margins: o.margins || { top: 90, bottom: 90, left: 120, right: 120 },
-});
-const tabla = (rows, widths, o = {}) => new Table({
-  rows, columnWidths: widths, width: { size: widths.reduce((a, b) => a + b, 0), type: WidthType.DXA },
-  layout: TableLayoutType.FIXED, borders: o.borders || SIN_BORDES,
-});
-// Fila de cabecera oscura (se repite al pasar de página)
-const cabecera = (labels, widths, aligns = []) => new TableRow({ tableHeader: true, cantSplit: true,
-  children: labels.map((l, i) => cell(para(run(l, { size: 14, bold: true, color: C.blanco, caps: true, spacing: 16 }),
-    { after: 0, align: aligns[i] }), { w: widths[i], fill: C.tinta, borders: { top: NONE, bottom: NONE, left: NONE, right: NONE }, v: VerticalAlign.CENTER })) });
 const R = AlignmentType.RIGHT, CEN = AlignmentType.CENTER;
+const celda = (hijos, o = {}) => new TableCell({
+  children: Array.isArray(hijos) ? hijos : [hijos],
+  width: { size: o.w, type: WidthType.DXA }, columnSpan: o.span, rowSpan: o.rspan,
+  verticalAlign: o.va || VerticalAlign.TOP,
+  shading: o.fill ? { fill: o.fill, type: ShadingType.CLEAR, color: 'auto' } : undefined,
+  borders: { top: o.bt || NIL, bottom: o.bb || NIL, left: o.bl || NIL, right: o.br || NIL },
+  margins: { top: o.pt ?? 0, bottom: o.pb ?? 0, left: o.pl ?? 0, right: o.pr ?? 0 },
+});
+const tabla = (filas, anchos) => new Table({ rows: filas, columnWidths: anchos, layout: TableLayoutType.FIXED,
+  width: { size: anchos.reduce((a, b) => a + b, 0), type: WidthType.DXA }, borders: SB, indent: { size: 0, type: WidthType.DXA },
+  margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+const fila = (celdas, o = {}) => new TableRow({ children: celdas, cantSplit: true, tableHeader: o.th,
+  height: o.h ? { value: o.h, rule: o.exact ? HeightRule.EXACT : HeightRule.ATLEAST } : undefined });
 
-// ── Contenido ────────────────────────────────────────────────────
+// ── Piezas tipográficas del PDF ──────────────────────────────────
+// .num-seccion: 7.8pt seminegrita, mayúsculas, tracking .16em, filete dorado .6pt, 4 mm debajo
+const numSeccion = t => P(r(t, { f: F.IS, s: 7.8, c: C.oroTexto, caps: true, sp: 1.25 }),
+  { pb: true, kn: true, lh: 11, af: mm(4), bd: { bottom: { ...B(.6, C.oro), space: 6 } } });
+// h2: EB Garamond 22pt, line-height 1.1, 5 mm debajo
+const h2 = (t, o = {}) => P(r(t, { f: F.G, s: o.s || 22 }), { kn: true, lh: (o.s || 22) * 1.15, af: o.af ?? mm(5), bf: o.bf });
+// h3: Inter 10pt seminegrita, cuadro dorado + separación
+const h3 = (t, o = {}) => P([r('■', { f: F.S, s: 11, c: o.c || C.oro }), r(' ' + t, { f: F.IS, s: 10 })],
+  { kn: true, lh: 14, bf: o.bf ?? mm(5.5), af: o.af ?? mm(1.6), pb: o.pb });
+// Texto corrido: 9.6pt, line-height 1.5, 2,6 mm entre párrafos
+const T = (t, o = {}) => P(Array.isArray(t) ? t.map(([s, b]) => r(s, { f: b ? F.IS : (o.f || F.I), s: o.s || 9.6, c: o.c })) : r(t, { s: o.s || 9.6, c: o.c, f: o.f }),
+  { lh: (o.s || 9.6) * 1.5, af: o.af ?? mm(2.6), bf: o.bf, al: o.al, kn: o.kn });
+// Rótulo pequeño (eyebrow / dt): mayúsculas con tracking
+const rot = (t, o = {}) => P(r(t, { f: o.f || F.IS, s: o.s || 7.6, c: o.c || C.oroTexto, caps: true, sp: o.sp ?? 1 }),
+  { lh: (o.s || 7.6) * 1.4, af: o.af ?? 0, bf: o.bf, kn: true, al: o.al });
+
+// Tablas de datos (.partidas, .pagos…): cabecera 7.3pt, celdas 8.9pt, rellenos 2,3/1,75 × 2,4 mm
+const TD = { s: 8.9, lh: 12.6, pv: mm(1.75), ph: mm(2.4) };
+const th = (t, w, o = {}) => celda(P(r(t, { f: F.IS, s: 7, c: C.blanco, caps: true, sp: .5 }), { al: o.al, lh: 10 }),
+  { w, span: o.span, fill: C.tinta, va: VerticalAlign.BOTTOM, pt: mm(2.3), pb: mm(2.3), pl: o.ph ?? TD.ph, pr: o.ph ?? TD.ph });
+const td = (cont, w, o = {}) => celda(Array.isArray(cont) && cont[0] instanceof Table ? cont : P(typeof cont === 'string' ? r(cont, { s: o.s || TD.s, f: o.f, c: o.c }) : cont, { al: o.al, lh: o.lh || TD.lh }),
+  { w, span: o.span, fill: o.fill, va: o.va, bb: o.bb === undefined ? LINEA : o.bb, bt: o.bt, pt: o.pt ?? TD.pv, pb: o.pb ?? TD.pv, pl: o.pl ?? TD.ph, pr: o.pr ?? TD.ph });
+const cierre = { bt: B(1.2, C.oro), bb: NIL, pt: mm(2.6) };
+
+// ── Datos ────────────────────────────────────────────────────────
 const PARTIDAS = [
   [1, 'Protección de zonas de paso, medios auxiliares y limpieza final', 'ud.', 1, '464 €'],
   [2, 'Nivelación de suelo con mortero de cemento y arena, maestreado y fratasado, con espesor aproximado de 3–5 cm', 'm²', 75, '3.479 €'],
@@ -122,292 +145,243 @@ const CONDICIONES = [
     [['Las incidencias se comunicarán a Sebastián Vanegas, en el teléfono '], ['624 892 643', true], ['. Renovare entregará las garantías, instrucciones de uso y mantenimiento y certificados que correspondan a los productos e instalaciones incluidos en el presupuesto. Las garantías de los trabajos y productos se atenderán conforme al contrato y a la normativa aplicable, respetando los derechos del cliente.']]]],
   ['Documentación contractual', ['La propuesta aceptada, sus anexos identificados y los cambios aprobados definen el alcance económico. El contrato de obra recoge las restantes condiciones, incluida cancelación y resolución. Seguro de responsabilidad civil: Occident GCO, S.A.U. de Seguros y Reaseguros, 8-11.477.641-F, con vigencia 03-02-2027.']],
 ];
-const texto = (t, o = {}) => para(Array.isArray(t) ? t.map(([s, b]) => run(s, { bold: b, ...o })) : run(t, o), { after: o.after ?? 110, line: 276 });
 
-// ── Portada ──────────────────────────────────────────────────────
+// ════════ PORTADA (sección 1: sin cabecera, margen superior 16 mm) ════════
 const portada = [];
-portada.push(tabla([new TableRow({ children: [
-  cell(para(new ImageRun({ type: 'png', data: LOGO, transformation: { width: 190, height: Math.round(190 * LOGO_RATIO) } }), { after: 0 }),
-    { w: 4819, v: VerticalAlign.BOTTOM, bottom: linea(C.oro, 6), margins: { top: 0, bottom: 200, left: 0, right: 0 } }),
-  cell([
-    para(run('Renovare Design & Build SL', { size: 15, bold: true }), { align: R, after: 0 }),
+portada.push(tabla([fila([
+  celda(P(new ImageRun({ type: 'png', data: LOGO, transformation: { width: px(52), height: Math.round(px(52) * LOGO_R) } })),
+    { w: W / 2, va: VerticalAlign.BOTTOM, bb: B(.6, C.oro), pb: mm(5) }),
+  celda([P(r('Renovare Design & Build SL', { f: F.IS, s: 7.6 }), { al: R, lh: 11.8 }),
     ...['CIF B-88775341', 'Calle Creu Roja 1, bajo · Benetússer', 'www.renovaredyb.com', '624 892 643 · renovaredyb@gmail.com']
-      .map(t => para(run(t, { size: 15, color: C.gris }), { align: R, after: 0 })),
-  ], { w: 4819, v: VerticalAlign.BOTTOM, bottom: linea(C.oro, 6), margins: { top: 0, bottom: 200, left: 0, right: 0 } }),
-] })], [4819, 4819]));
-portada.push(etiqueta('Propuesta comercial', { before: 360, after: 60 }));
-portada.push(new Paragraph({ style: 'Titulo1', children: [new TextRun('Presupuesto de reforma')] }));
-portada.push(para(run('Reforma integral en Valencia', { font: F.titulo, size: 28, italics: true, color: C.oroTexto }), { after: 240 }));
-
-const ficha = (l, v, w, grande, span) => new TableCell({ columnSpan: span, width: { size: w, type: WidthType.DXA },
-  borders: { top: NONE, bottom: NONE, left: NONE, right: NONE }, margins: { top: 60, bottom: 60, left: 0, right: 120 },
-  children: [etiqueta(l, { size: 13, color: C.gris, after: 20 }), para(run(v, { size: grande ? 24 : 19, bold: grande }), { after: 0 })] });
+      .map(t => P(r(t, { s: 7.6, c: C.gris }), { al: R, lh: 11.8 }))],
+    { w: W / 2, va: VerticalAlign.BOTTOM, bb: B(.6, C.oro), pb: mm(5) }),
+])], [W / 2, W / 2]));
+portada.push(rot('Propuesta comercial', { s: 7.8, sp: 1.25, bf: mm(7), af: mm(2.5) }));
+portada.push(P(r('Presupuesto de reforma', { f: F.G, s: 29 }), { lh: 33, af: mm(1) }));
+portada.push(P(r('Reforma integral en Valencia', { f: F.G, s: 13.5, i: true, c: C.oroTexto }), { lh: 17, af: mm(5) }));
+const fichaC = (l, v, w, o = {}) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7 }),
+  P(r(v, { f: o.big ? F.IS : F.IM, s: o.big ? 12 : 9.6 }), { lh: o.big ? 16 : 14, bf: mm(.5) })],
+  { w, span: o.span, pt: o.pt ?? 0, pb: o.pb ?? 0, pr: mm(3), bt: o.bt, bb: o.bb });
+const wf = [mm(64), mm(31), mm(28), W - mm(64) - mm(31) - mm(28)];
 portada.push(tabla([
-  new TableRow({ children: [ficha('Preparado para', 'Cristian Nohalez García', W, true, 4)] }),
-  new TableRow({ children: [ficha('Obra', 'Calle Barig 3, Benicalap · 46025', 3638), ficha('Referencia', 'SV-0045-03', 2000),
-    ficha('Emisión', '07/10/2026', 2000), ficha('Válido hasta', '07/11/2026', 2000)] }),
-], [3638, 2000, 2000, 2000], { borders: { ...SIN_BORDES, top: linea(), bottom: linea() } }));
+  fila([fichaC('Preparado para', 'Cristian Nohalez García', W, { big: true, span: 4, bt: B(.6, C.linea), pt: mm(3), pb: mm(2) })]),
+  fila([fichaC('Obra', 'Calle Barig 3, Benicalap · 46025', wf[0], { bb: B(.6, C.linea), pb: mm(3) }),
+    fichaC('Referencia', 'SV-0045-03', wf[1], { bb: B(.6, C.linea), pb: mm(3) }), fichaC('Emisión', '07/10/2026', wf[2], { bb: B(.6, C.linea), pb: mm(3) }),
+    fichaC('Válido hasta', '07/11/2026', wf[3], { bb: B(.6, C.linea), pb: mm(3) })]),
+], wf));
+portada.push(h2('Su proyecto en una página', { s: 16, bf: mm(6), af: mm(2.5) }));
+portada.push(T('Reforma integral de su vivienda de 75 m²: suelos de microcemento, electricidad y fontanería nuevas, cocina y baño completos, puertas y ventanas, alisado y pintura, aire acondicionado y retirada de residuos. La oferta recoge los trabajos, materiales y acabados definidos tras la visita realizada in situ, según su planteamiento.', { s: 9.4, af: mm(5) }));
+const desg = (l, v, total) => fila([
+  td(r(l, { f: total ? F.IS : F.I, s: 9.6, c: total ? C.tinta : C.gris }), mm(40), { bb: total ? NIL : LINEA, bt: total ? B(.8, C.oro) : undefined, pl: 0, pr: 0, pt: mm(1.2), pb: mm(1.2), lh: 14 }),
+  td(r(v, { f: total ? F.IS : F.I, s: 9.6 }), mm(32), { al: R, bb: total ? NIL : LINEA, bt: total ? B(.8, C.oro) : undefined, pl: 0, pr: 0, pt: mm(1.2), pb: mm(1.2), lh: 14 }),
+]);
+portada.push(tabla([fila([
+  celda([rot('Inversión del proyecto base', { s: 7.6, sp: 1.06 }),
+    P([r('46.359 €', { f: F.G, s: 31 }), r('  + IVA', { f: F.IM, s: 12, c: C.gris })], { lh: 36, bf: mm(2) })],
+    { w: W / 2, fill: C.papel, va: VerticalAlign.CENTER, bl: B(4, C.oro), bt: B(.6, C.linea), bb: B(.6, C.linea), pt: mm(4.5), pb: mm(4.5), pl: mm(6), pr: mm(2) }),
+  celda(tabla([desg('Base imponible', '46.359,00 €'), desg('IVA 10 %', '4.635,90 €'), desg('Total IVA incluido', '50.994,90 €', true)], [mm(40), mm(32)]),
+    { w: W / 2, fill: C.papel, va: VerticalAlign.CENTER, br: B(.6, C.linea), bt: B(.6, C.linea), bb: B(.6, C.linea), pt: mm(4), pb: mm(4), pl: mm(5), pr: mm(6) }),
+])], [W / 2, W / 2]));
+const colW = Math.round((W - mm(8)) / 2);
+const dlRow = (l, v) => fila([
+  td(r(l, { s: 9.6, c: C.gris }), mm(30), { pl: 0, pr: mm(1), pt: mm(1.2), pb: mm(1.2), lh: 14 }),
+  td(r(v, { f: F.IM, s: 9.6 }), colW - mm(30), { pl: 0, pr: 0, pt: mm(1.2), pb: mm(1.2), lh: 14 })]);
+const dl = pares => tabla(pares.map(([l, v]) => dlRow(l, v)), [mm(30), colW - mm(30)]);
+portada.push(tabla([fila([
+  celda([h3('Alcance principal', { bf: 0 }), dl([['Espacios', 'Salón, baño, cocina y habitaciones'], ['Superficie intervenida', '75 m²'], ['Tipo de inmueble', 'Apartamento']])], { w: colW, pt: mm(5) }),
+  celda(vacio(), { w: W - 2 * colW }),
+  celda([h3('Planificación', { bf: 0 }), dl([['Duración base', '10–12 semanas'], ['Inicio previsto', '2 de noviembre de 2026'], ['Responsable', 'Sebastián Vanegas · Jefe de obra'], ['Contacto', '624 892 643']])], { w: colW, pt: mm(5) }),
+])], [colW, W - 2 * colW, colW]));
+const caja = (titulo, cuerpo, bf) => [vacio({ bf }), tabla([fila([celda([rot(titulo, { s: 7.4, sp: 1.04, af: mm(1) }), T(cuerpo, { af: 0 })],
+  { w: W, fill: C.oroClaro, pt: mm(3.6), pb: mm(3.6), pl: mm(5), pr: mm(5) })])], [W])];
+portada.push(...caja('Siguiente paso', 'Para avanzar, revisamos juntos el alcance, resolvemos las dudas y confirmamos las opciones elegidas antes de formalizar la aceptación. Sebastián Vanegas le llamará para acordar esa revisión; también puede contactarle directamente en el 624 892 643 o en renovaredyb@gmail.com. Oferta válida hasta el 07/11/2026.', mm(5)));
 
-portada.push(new Paragraph({ style: 'Titulo2', spacing: { before: 280, after: 80 }, children: [new TextRun({ text: 'Su proyecto en una página', size: 34 })] }));
-portada.push(texto('Reforma integral de su vivienda de 75 m²: suelos de microcemento, electricidad y fontanería nuevas, cocina y baño completos, puertas y ventanas, alisado y pintura, aire acondicionado y retirada de residuos. La oferta recoge los trabajos, materiales y acabados definidos tras la visita realizada in situ, según su planteamiento.', { after: 200 }));
-
-const filaInv = (l, v, total) => new TableRow({ children: [
-  cell(para(run(l, { size: 19, bold: total, color: total ? C.tinta : C.gris }), { after: 0 }), { w: 2400, fill: C.papel, bottom: total ? NONE : linea(), borders: total ? { top: linea(C.oro, 8), bottom: NONE, left: NONE, right: NONE } : undefined, margins: { top: 70, bottom: 70, left: 0, right: 0 } }),
-  cell(para(run(v, { size: 19, bold: total }), { after: 0, align: R }), { w: 1900, fill: C.papel, bottom: total ? NONE : linea(), borders: total ? { top: linea(C.oro, 8), bottom: NONE, left: NONE, right: NONE } : undefined, margins: { top: 70, bottom: 70, left: 0, right: 0 } }),
-] });
-portada.push(tabla([new TableRow({ children: [
-  cell([etiqueta('Inversión del proyecto base', { size: 15 }),
-    para([run('46.359 €', { font: F.titulo, size: 64 }), run('  + IVA', { size: 22, color: C.gris })], { after: 0 })],
-    { w: 4938, fill: C.papel, v: VerticalAlign.CENTER, borders: { top: linea(), bottom: linea(), right: NONE, left: { style: BorderStyle.SINGLE, size: 36, color: C.oro } }, margins: { top: 220, bottom: 220, left: 300, right: 120 } }),
-  cell(tabla([filaInv('Base imponible', '46.359,00 €'), filaInv('IVA 10 %', '4.635,90 €'), filaInv('Total IVA incluido', '50.994,90 €', true)], [2400, 1900]),
-    { w: 4700, fill: C.papel, v: VerticalAlign.CENTER, borders: { top: linea(), bottom: linea(), right: linea(), left: NONE }, margins: { top: 200, bottom: 200, left: 100, right: 300 } }),
-] })], [4938, 4700]));
-
-const dl = (pares, wl, wv) => tabla(pares.map(([l, v]) => new TableRow({ cantSplit: true, children: [
-  cell(para(run(l, { size: 19, color: C.gris }), { after: 0 }), { w: wl, margins: { top: 70, bottom: 70, left: 0, right: 80 } }),
-  cell(para(run(v, { size: 19, bold: true }), { after: 0 }), { w: wv, margins: { top: 70, bottom: 70, left: 0, right: 0 } }),
-] })), [wl, wv]);
-portada.push(tabla([new TableRow({ children: [
-  cell([h3('Alcance principal', { before: 0 }), dl([['Espacios', 'Salón, baño, cocina y habitaciones'], ['Superficie intervenida', '75 m²'], ['Tipo de inmueble', 'Apartamento']], 1750, 2769)],
-    { w: 4519, bottom: NONE, margins: { top: 280, bottom: 0, left: 0, right: 0 } }),
-  cell(para('', { after: 0 }), { w: 600, bottom: NONE }),
-  cell([h3('Planificación', { before: 0 }), dl([['Duración base', '10–12 semanas'], ['Inicio previsto', '2 de noviembre de 2026'], ['Responsable', 'Sebastián Vanegas · Jefe de obra'], ['Contacto', '624 892 643']], 1500, 3019)],
-    { w: 4519, bottom: NONE, margins: { top: 280, bottom: 0, left: 0, right: 0 } }),
-] })], [4519, 600, 4519]));
-
-const destacado = (titulo, cuerpo, before = 300) => tabla([new TableRow({ cantSplit: true, children: [cell([
-  etiqueta(titulo, { size: 14, after: 40 }), texto(cuerpo, { after: 0 })],
-  { w: W, fill: C.oroClaro, bottom: NONE, margins: { top: 180, bottom: 180, left: 280, right: 280 } })] })], [W]);
-portada.push(para('', { after: 0, before: 0 }));
-portada.push(destacado('Siguiente paso', 'Para avanzar, revisamos juntos el alcance, resolvemos las dudas y confirmamos las opciones elegidas antes de formalizar la aceptación. Sebastián Vanegas le llamará para acordar esa revisión; también puede contactarle directamente en el 624 892 643 o en renovaredyb@gmail.com. Oferta válida hasta el 07/11/2026.'));
-
-// ── 01 · Alcance ────────────────────────────────────────────────
-const alcance = [...seccion('01 · Proyecto y resumen ejecutivo', 'Alcance y coordinación')];
-alcance.push(h3('Qué vamos a transformar', { before: 0 }));
-alcance.push(texto('Realizaremos una reforma integral de la vivienda para renovar sus espacios, instalaciones y acabados. Actualizaremos la cocina y el baño, incluyendo mobiliario y equipamiento. Renovaremos la electricidad y la fontanería, nivelaremos los suelos y aplicaremos microcemento. Completaremos la transformación con alisado y pintura, sustitución de las puertas y ventanas indicadas e instalación de aire acondicionado, para lograr una vivienda más funcional y confortable.'));
-const caja = (titulo, cuerpo, color, w) => cell([h3(titulo, { before: 0, color }), texto(cuerpo, { after: 40 })],
-  { w, fill: C.papel, borders: { top: linea(color, 8), bottom: NONE, left: NONE, right: NONE }, margins: { top: 160, bottom: 120, left: 220, right: 220 } });
-alcance.push(tabla([new TableRow({ cantSplit: true, children: [
-  caja('Incluido en el proyecto base', [['Los trabajos, materiales y suministros detallados en la tabla del apartado '], ['02 · Inversión', true], [', según las condiciones indicadas en cada partida. Las partidas opcionales se incorporarán únicamente si el cliente las acepta expresamente.']], C.oro, 4669),
-  cell(para('', { after: 0 }), { w: 300, bottom: NONE }),
-  caja('No incluido', 'Los trabajos y suministros que no estén expresamente descritos en este presupuesto. Tampoco se incluyen electrodomésticos, luminarias, licencias, tasas, proyecto técnico ni dirección facultativa, cuando estos sean necesarios.', C.gris, 4669),
-] })], [4669, 300, 4669]));
-alcance.push(h3('Decisiones de materiales'));
-alcance.push(texto('Los suelos, alicatados, muebles y puertas de cocina, así como las encimeras, se elegirán entre la variedad de modelos ofrecidos por la empresa dentro del presupuesto. Sebastián comunicará las fechas de elección según el avance de la obra. Si el cliente prefiere una opción cuyo precio supere el importe previsto, se comunicará la diferencia para su aprobación antes de realizar el pedido.'));
-alcance.push(h3('Cómo coordinamos su obra'));
-alcance.push(texto('El responsable, Sebastián Vanegas, centraliza las consultas y coordina los oficios. Compartimos un seguimiento con los avances y las decisiones pendientes. Los cambios se registran por escrito con su coste y efecto en el plazo. Al finalizar, revisamos la obra juntos y documentamos los remates y la entrega.'));
-alcance.push(texto('Seguimiento visual: fotografías periódicas del avance con un resumen de trabajos realizados y próximos pasos. Si la obra lo permite y se autoriza expresamente, puede añadirse una cámara fija con acceso restringido, sin audio y sin captar espacios ajenos a la actuación.'));
+// ════════ 01 · ALCANCE ════════
+const s1 = [numSeccion('01 · Proyecto y resumen ejecutivo'), h2('Alcance y coordinación', { af: mm(3.5) })];
+const h3a = (t, o = {}) => h3(t, { bf: mm(4), ...o });
+const Ta = (t, o = {}) => T(t, { af: mm(2), ...o });
+s1.push(h3a('Qué vamos a transformar', { bf: 0 }));
+s1.push(Ta('Realizaremos una reforma integral de la vivienda para renovar sus espacios, instalaciones y acabados. Actualizaremos la cocina y el baño, incluyendo mobiliario y equipamiento. Renovaremos la electricidad y la fontanería, nivelaremos los suelos y aplicaremos microcemento. Completaremos la transformación con alisado y pintura, sustitución de las puertas y ventanas indicadas e instalación de aire acondicionado, para lograr una vivienda más funcional y confortable.'));
+const wInc = Math.round((W - mm(6)) / 2);
+const cajaInc = (t, cuerpo, color) => celda([h3(t, { bf: 0, c: color }), Ta(cuerpo, { af: mm(.8) })],
+  { w: wInc, fill: C.papel, bt: B(.8, color), pt: mm(3), pb: mm(1), pl: mm(4), pr: mm(4) });
+s1.push(vacio({ bf: mm(1) }));
+s1.push(tabla([fila([
+  cajaInc('Incluido en el proyecto base', [['Los trabajos, materiales y suministros detallados en la tabla del apartado '], ['02 · Inversión', true], [', según las condiciones indicadas en cada partida. Las partidas opcionales se incorporarán únicamente si el cliente las acepta expresamente.']], C.oro),
+  celda(vacio(), { w: W - 2 * wInc }),
+  cajaInc('No incluido', 'Los trabajos y suministros que no estén expresamente descritos en este presupuesto. Tampoco se incluyen electrodomésticos, luminarias, licencias, tasas, proyecto técnico ni dirección facultativa, cuando estos sean necesarios.', C.gris),
+])], [wInc, W - 2 * wInc, wInc]));
+s1.push(h3a('Decisiones de materiales'));
+s1.push(Ta('Los suelos, alicatados, muebles y puertas de cocina, así como las encimeras, se elegirán entre la variedad de modelos ofrecidos por la empresa dentro del presupuesto. Sebastián comunicará las fechas de elección según el avance de la obra. Si el cliente prefiere una opción cuyo precio supere el importe previsto, se comunicará la diferencia para su aprobación antes de realizar el pedido.'));
+s1.push(h3a('Cómo coordinamos su obra'));
+s1.push(Ta('El responsable, Sebastián Vanegas, centraliza las consultas y coordina los oficios. Compartimos un seguimiento con los avances y las decisiones pendientes. Los cambios se registran por escrito con su coste y efecto en el plazo. Al finalizar, revisamos la obra juntos y documentamos los remates y la entrega.'));
+s1.push(Ta('Seguimiento visual: fotografías periódicas del avance con un resumen de trabajos realizados y próximos pasos. Si la obra lo permite y se autoriza expresamente, puede añadirse una cámara fija con acceso restringido, sin audio y sin captar espacios ajenos a la actuación.'));
 const PASOS = [['Revisión', 'Visita, medición y definición de necesidades'], ['Planificación', 'Fases, coordinación y previsión de medios'], ['Preparación', 'Protecciones y organización de la zona de trabajo'], ['Ejecución', 'Desarrollo de los trabajos y seguimiento acordado'], ['Entrega', 'Revisión final, limpieza y cierre del proyecto']];
-alcance.push(tabla([new TableRow({ cantSplit: true, children: PASOS.flatMap(([t, d], i) => {
-  const c = cell([para(run(`0${i + 1}`, { size: 14, bold: true, color: C.oroTexto }), { after: 10 }), para(run(t, { size: 17, bold: true }), { after: 10 }), para(run(d, { size: 15, color: C.gris }), { after: 0, line: 240 })],
-    { w: 1771, borders: { top: linea(C.oro, 8), bottom: NONE, left: NONE, right: NONE }, margins: { top: 80, bottom: 40, left: 0, right: 60 } });
-  return i < 4 ? [c, cell(para('', { after: 0 }), { w: 196, bottom: NONE })] : [c];
-}) })], [1771, 196, 1771, 196, 1771, 196, 1771, 196, 1770]));
-alcance.push(h3('Datos para la ejecución', { before: 240 }));
-const dato = (l, v, w) => cell([etiqueta(l, { size: 13, color: C.gris, after: 10 }), para(run(v, { size: 19, bold: true }), { after: 0 })], { w, margins: { top: 70, bottom: 70, left: 0, right: 100 } });
-alcance.push(tabla([
-  new TableRow({ cantSplit: true, children: [dato('Cliente', 'Cristian Nohalez García · 607 23 86 30', 4819), dato('Empresa', 'Renovare Design & Build SL · CIF B-88775341', 4819)] }),
-  new TableRow({ cantSplit: true, children: [dato('Domicilio', 'Calle Creu Roja 1, bajo · Benetússer', 4819), dato('Contacto comercial', 'Sebastián Vanegas', 4819)] }),
-  new TableRow({ cantSplit: true, children: [new TableCell({ columnSpan: 2, width: { size: W, type: WidthType.DXA },
-    borders: { top: NONE, left: NONE, right: NONE, bottom: linea() }, margins: { top: 70, bottom: 70, left: 0, right: 100 },
-    children: [etiqueta('Acceso, horarios y ocupación del inmueble', { size: 13, color: C.gris, after: 10 }), para(run('Lunes a viernes, de 8:00 a 17:00', { size: 19, bold: true }), { after: 0 })] })] }),
-], [4819, 4819], { borders: { ...SIN_BORDES, top: linea() } }));
+const gap = mm(2.5), wPaso = Math.floor((W - 4 * gap) / 5), wUlt = W - 4 * gap - 4 * wPaso;
+s1.push(vacio({ bf: mm(1) }));
+s1.push(tabla([fila(PASOS.flatMap(([t, d], i) => {
+  const c = celda([P(r(`0${i + 1}`, { f: F.IS, s: 7, c: C.oroTexto, sp: .56 }), { lh: 10 }), P(r(t, { f: F.IS, s: 8.6 }), { lh: 12, bf: mm(.5), af: mm(.6) }), P(r(d, { s: 7.9, c: C.gris }), { lh: 10.7 })],
+    { w: i < 4 ? wPaso : wUlt, bt: B(.8, C.oro), pt: mm(1.5) });
+  return i < 4 ? [c, celda(vacio(), { w: gap })] : [c];
+}))], [wPaso, gap, wPaso, gap, wPaso, gap, wPaso, gap, wUlt]));
+s1.push(h3a('Datos para la ejecución'));
+const dato = (l, v, w, span) => celda([rot(l, { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r(v, { f: F.IM, s: 9.6 }), { lh: 14, bf: mm(.4) })],
+  { w, span, bb: LINEA, pt: mm(1.6), pb: mm(1.6), pr: mm(2) });
+s1.push(tabla([
+  fila([dato('Cliente', 'Cristian Nohalez García · 607 23 86 30', W / 2), dato('Empresa', 'Renovare Design & Build SL · CIF B-88775341', W / 2)]),
+  fila([dato('Domicilio', 'Calle Creu Roja 1, bajo · Benetússer', W / 2), dato('Contacto comercial', 'Sebastián Vanegas', W / 2)]),
+  fila([dato('Acceso, horarios y ocupación del inmueble', 'Lunes a viernes, de 8:00 a 17:00', W, 2)]),
+], [W / 2, W / 2]));
 
-// ── 02 · Inversión ──────────────────────────────────────────────
-const inversion = [...seccion('02 · Inversión', 'Resumen económico')];
-inversion.push(texto('Dónde se invierte cada euro del proyecto base, agrupado por capítulos. El detalle de cada partida figura a continuación.', { after: 140 }));
-const wc = [3500, 1300, 2300, 900, 1638];
-const barra = (pc, ancho) => { const lleno = Math.max(60, Math.round(pc / 24.2 * ancho)); const resto = ancho - lleno;
-  const c = (w, fill) => cell(para(run('', { size: 4 }), { after: 0, line: 120 }), { w, fill, bottom: NONE, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
-  return tabla([new TableRow({ height: { value: 130, rule: HeightRule.EXACT }, children: resto > 0 ? [c(lleno, C.barra), c(resto)] : [c(lleno, C.barra)] })], resto > 0 ? [lleno, resto] : [lleno]); };
-inversion.push(tabla([
-  cabecera(['Capítulo', 'Partidas', 'Peso sobre el total', '', 'Sin IVA'], wc, [null, null, null, R, R]),
-  ...CAPITULOS.map(([n, pt, pc, s]) => new TableRow({ cantSplit: true, children: [
-    cell(para(run(n, { size: 18, bold: true }), { after: 0 }), { w: wc[0], v: VerticalAlign.CENTER }),
-    cell(para(run(pt, { size: 16, color: C.gris }), { after: 0 }), { w: wc[1], v: VerticalAlign.CENTER }),
-    // Barra: tabla de dos celdas; para editarla, arrastrar el borde entre la celda dorada y la vacía.
-    cell(barra(pc, wc[2] - 240), { w: wc[2], v: VerticalAlign.CENTER }),
-    cell(para(run(`${pc.toFixed(1).replace('.', ',')} %`, { size: 17, color: C.gris }), { after: 0, align: R }), { w: wc[3], v: VerticalAlign.CENTER }),
-    cell(para(run(s, { size: 18, bold: true }), { after: 0, align: R }), { w: wc[4], v: VerticalAlign.CENTER }),
-  ] })),
-  new TableRow({ cantSplit: true, children: [
-    cell(para(run('Total proyecto base', { size: 18, bold: true }), { after: 0 }), { w: wc[0], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-    cell(para('', { after: 0 }), { w: wc[1], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-    cell(para('', { after: 0 }), { w: wc[2], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-    cell(para(run('100 %', { size: 18, bold: true }), { after: 0, align: R }), { w: wc[3], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-    cell(para(run('46.359 €', { size: 18, bold: true }), { after: 0, align: R }), { w: wc[4], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-  ] }),
+// ════════ 02 · INVERSIÓN ════════
+const s2 = [numSeccion('02 · Inversión'), h2('Resumen económico')];
+s2.push(T('Dónde se invierte cada euro del proyecto base, agrupado por capítulos. El detalle de cada partida figura a continuación.'));
+const wc = [0, mm(22), mm(36), mm(18), mm(29)]; wc[0] = W - wc.slice(1).reduce((a, b) => a + b, 0);
+const barraMax = wc[2] - TD.ph - mm(1);
+// Barra proporcional: minitabla de dos celdas (se ajusta arrastrando su borde central)
+const barra = pc => { const l = Math.max(mm(1.2), Math.round(pc / 24.2 * barraMax)), v = barraMax - l;
+  const c = (w, fill) => celda(vacio(), { w, fill });
+  return new Table({ rows: [new TableRow({ height: { value: mm(2.6), rule: HeightRule.EXACT }, children: v > 0 ? [c(l, C.barra), c(v)] : [c(l, C.barra)] })],
+    columnWidths: v > 0 ? [l, v] : [l], width: { size: barraMax, type: WidthType.DXA }, layout: TableLayoutType.FIXED, borders: SB }); };
+s2.push(tabla([
+  fila([th('Capítulo', wc[0]), th('Partidas', wc[1]), th('Peso sobre el total', wc[2] + wc[3], { span: 2 }), th('Sin IVA', wc[4], { al: R })], { th: true }),
+  ...CAPITULOS.map(([n, p, pc, s]) => fila([
+    td(r(n, { f: F.IM, s: 8.9 }), wc[0], { va: VerticalAlign.CENTER }),
+    td(r(p, { s: 8, c: C.gris }), wc[1], { va: VerticalAlign.CENTER }),
+    td([barra(pc), vacio()], wc[2], { va: VerticalAlign.CENTER, pr: mm(1) }),
+    td(r(`${pc.toFixed(1).replace('.', ',')} %`, { s: 8.9, c: C.gris }), wc[3], { al: R, va: VerticalAlign.CENTER, pl: mm(1) }),
+    td(r(s, { f: F.IS, s: 8.9 }), wc[4], { al: R, va: VerticalAlign.CENTER }),
+  ])),
+  fila([td(r('Total proyecto base', { s: 8.9, b: true }), wc[0], cierre), td('', wc[1], cierre), td('', wc[2], cierre),
+    td(r('100 %', { s: 8.9, b: true }), wc[3], { ...cierre, al: R }), td(r('46.359 €', { s: 8.9, b: true }), wc[4], { ...cierre, al: R })]),
 ], wc));
-
-const resumen = (filas, widths) => tabla([
-  cabecera(['Concepto', 'Importe'], widths, [null, R]),
-  ...filas.map(([l, v, total]) => new TableRow({ cantSplit: true, children: [
-    cell(para(run(l, { size: total ? 20 : 18, bold: total }), { after: 0 }), { w: widths[0], fill: total ? C.oroClaro : undefined, bottom: total ? linea(C.oro, 10) : linea() }),
-    cell(para(run(v, { size: total ? 20 : 18, bold: total }), { after: 0, align: R }), { w: widths[1], fill: total ? C.oroClaro : undefined, bottom: total ? linea(C.oro, 10) : linea() }),
-  ] })),
-], widths);
-inversion.push(para('', { after: 120 }));
-inversion.push(tabla([new TableRow({ cantSplit: true, children: [
-  cell(resumen([['Subtotal proyecto base', '46.359,00 €'], ['IVA 10 %', '4.635,90 €'], ['Total proyecto con IVA', '50.994,90 €', true]], [3000, 2100]), { w: 5100, bottom: NONE, margins: { top: 0, bottom: 0, left: 0, right: 0 } }),
-  cell([texto('El total es cerrado para las mediciones, trabajos y calidades definidos en esta oferta. Cualquier modificación se tramita conforme al procedimiento de cambios de la página de condiciones.', { size: 17, color: C.gris }),
-    texto('Opción no incluida: puerta principal, 1.186 € sin IVA (partida 27).', { size: 17, color: C.gris, after: 0 })], { w: 4538, bottom: NONE, margins: { top: 0, bottom: 0, left: 400, right: 0 } }),
-] })], [5100, 4538]));
-
-// Detalle de partidas (página nueva)
-inversion.push(new Paragraph({ style: 'Titulo3', pageBreakBefore: true, spacing: { before: 0, after: 60 }, children: [run('■  ', { size: 16, color: C.oro, bold: true }), new TextRun('Detalle de partidas')] }));
-inversion.push(texto('Las partidas siguientes corresponden exclusivamente al proyecto base.', { after: 120 }));
-const wp = [620, 5518, 950, 1050, 1500];
-const descripcion = d => Array.isArray(d) ? para(d.map(([s, b]) => run(s, { size: 18, bold: b })), { after: 0, line: 252 }) : para(run(d, { size: 18 }), { after: 0, line: 252 });
-inversion.push(tabla([
-  cabecera(['Nº', 'Descripción', 'Unidad', 'Cantidad', 'Importe sin IVA'], wp, [CEN, null, CEN, CEN, R]),
-  ...PARTIDAS.map(([n, d, u, q, i], k) => { const f = k % 2 ? C.papel : undefined; return new TableRow({ cantSplit: true, children: [
-    cell(para(run(String(n), { size: 18, bold: true, color: C.oroTexto }), { after: 0, align: CEN }), { w: wp[0], fill: f }),
-    cell(descripcion(d), { w: wp[1], fill: f }),
-    cell(para(run(u, { size: 18 }), { after: 0, align: CEN }), { w: wp[2], fill: f }),
-    cell(para(run(String(q), { size: 18 }), { after: 0, align: CEN }), { w: wp[3], fill: f }),
-    cell(para(run(i, { size: 18, bold: true }), { after: 0, align: R }), { w: wp[4], fill: f }),
-  ] }); }),
-  new TableRow({ cantSplit: true, children: [
-    cell(para('', { after: 0 }), { w: wp[0], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } }),
-    new TableCell({ columnSpan: 3, width: { size: wp[1] + wp[2] + wp[3], type: WidthType.DXA }, borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE }, margins: { top: 120, bottom: 90, left: 120, right: 120 },
-      children: [para(run('Total proyecto base sin IVA', { size: 20, bold: true }), { after: 0, align: R })] }),
-    cell(para(run('46.359,00 €', { size: 20, bold: true }), { after: 0, align: R }), { w: wp[4], borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE }, margins: { top: 120, bottom: 90, left: 120, right: 120 } }),
-  ] }),
-  new TableRow({ cantSplit: true, children: [
-    cell(para('', { after: 0 }), { w: wp[0], bottom: linea(C.oro, 6), margins: { top: 260, bottom: 40, left: 120, right: 120 } }),
-    new TableCell({ columnSpan: 4, width: { size: wp[1] + wp[2] + wp[3] + wp[4], type: WidthType.DXA }, borders: { top: NONE, bottom: linea(C.oro, 6), left: NONE, right: NONE }, margins: { top: 260, bottom: 40, left: 120, right: 120 },
-      children: [etiqueta('Opción no incluida en el total · requiere aceptación expresa', { size: 14, after: 0 })] }),
-  ] }),
-  new TableRow({ cantSplit: true, children: [
-    cell(para(run('27', { size: 18, bold: true, color: C.oroTexto }), { after: 0, align: CEN }), { w: wp[0] }),
-    cell(para([run('OPCIONAL  ', { size: 14, bold: true, color: C.oroTexto, spacing: 20 }), run('Puerta principal: suministro e instalación', { size: 18, color: C.gris })], { after: 0 }), { w: wp[1] }),
-    cell(para(run('ud.', { size: 18, color: C.gris }), { after: 0, align: CEN }), { w: wp[2] }),
-    cell(para(run('1', { size: 18, color: C.gris }), { after: 0, align: CEN }), { w: wp[3] }),
-    cell(para(run('1.186 €', { size: 18, color: C.gris }), { after: 0, align: R }), { w: wp[4] }),
-  ] }),
+const wr = [mm(95) - mm(32), mm(32)];
+const resumen = tabla([
+  fila([th('Concepto', wr[0]), th('Importe', wr[1], { al: R })], { th: true }),
+  fila([td('Subtotal proyecto base', wr[0]), td('46.359,00 €', wr[1], { al: R })]),
+  fila([td('IVA 10 %', wr[0]), td('4.635,90 €', wr[1], { al: R })]),
+  fila([td(r('Total proyecto con IVA', { s: 10, b: true }), wr[0], { fill: C.oroClaro, bb: B(1.2, C.oro), pt: mm(2.8), pb: mm(2.8) }),
+    td(r('50.994,90 €', { s: 10, b: true }), wr[1], { fill: C.oroClaro, bb: B(1.2, C.oro), al: R, pt: mm(2.8), pb: mm(2.8) })]),
+], wr);
+const nota = (t, o = {}) => P(r(t, { s: 8.8, c: C.gris }), { lh: 13.2, af: o.af ?? mm(2.6), bf: o.bf });
+s2.push(vacio({ bf: mm(6) }));
+s2.push(tabla([fila([celda(resumen, { w: mm(95) }), celda(vacio(), { w: mm(8) }),
+  celda([nota('El total es cerrado para las mediciones, trabajos y calidades definidos en esta oferta. Cualquier modificación se tramita conforme al procedimiento de cambios de la página de condiciones.', { bf: mm(1) }),
+    nota('Opción no incluida: puerta principal, 1.186 € sin IVA (partida 27).', { af: 0 })], { w: W - mm(103) })])], [mm(95), mm(8), W - mm(103)]));
+s2.push(h3('Detalle de partidas', { pb: true, bf: 0 }));
+s2.push(T('Las partidas siguientes corresponden exclusivamente al proyecto base.'));
+const wp = [mm(10), 0, mm(17), mm(21), mm(33)]; wp[1] = W - wp[0] - wp[2] - wp[3] - wp[4];
+const desc = d => Array.isArray(d) ? d.map(([s, b]) => r(s, { s: 8.9, f: b ? F.IS : F.I })) : r(d, { s: 8.9 });
+s2.push(tabla([
+  fila([th('Nº', wp[0], { al: CEN }), th('Descripción', wp[1]), th('Unidad', wp[2], { al: CEN }), th('Cantidad', wp[3], { al: CEN }), th('Importe sin IVA', wp[4], { al: R })], { th: true }),
+  ...PARTIDAS.map(([n, d, u, q, i], k) => { const fill = k % 2 ? C.papel : undefined; return fila([
+    td(r(String(n), { f: F.IS, s: 8.9, c: C.oroTexto }), wp[0], { al: CEN, fill }), td(desc(d), wp[1], { fill }),
+    td(u, wp[2], { al: CEN, fill }), td(String(q), wp[3], { al: CEN, fill }), td(r(i, { f: F.IM, s: 8.9 }), wp[4], { al: R, fill })]); }),
+  fila([td('', wp[0], cierre), td(r('Total proyecto base sin IVA', { f: F.IS, s: 9.6 }), wp[1] + wp[2] + wp[3], { ...cierre, span: 3, al: R }),
+    td(r('46.359,00 €', { f: F.IS, s: 9.6 }), wp[4], { ...cierre, al: R })]),
+  fila([td('', wp[0], { bb: B(.6, C.oro), pt: mm(5), pb: mm(1) }),
+    td(r('Opción no incluida en el total · requiere aceptación expresa', { f: F.IS, s: 7.2, c: C.oroTexto, caps: true, sp: .72 }), wp[1] + wp[2] + wp[3] + wp[4], { span: 4, bb: B(.6, C.oro), pt: mm(5), pb: mm(1) })]),
+  fila([td(r('27', { f: F.IS, s: 8.9, c: C.oroTexto }), wp[0], { al: CEN }),
+    td([r(' OPCIONAL ', { f: F.IS, s: 6.6, c: C.oroTexto, sp: .66, border: B(.6, C.oro) }), r(' Puerta principal: suministro e instalación', { s: 8.9, c: C.gris })], wp[1]),
+    td(r('ud.', { s: 8.9, c: C.gris }), wp[2], { al: CEN }), td(r('1', { s: 8.9, c: C.gris }), wp[3], { al: CEN }), td(r('1.186 €', { s: 8.9, c: C.gris }), wp[4], { al: R })]),
 ], wp));
 
-// ── 03 · Plazos y pagos ─────────────────────────────────────────
-const plazos = [...seccion('03 · Plazos', 'Planificación y forma de pago')];
-plazos.push(texto('Inicio previsto el 2 de noviembre de 2026. Duración del proyecto base: 10–12 semanas. El cronograma detallado y la fecha de terminación se confirman antes del inicio, con materiales, accesos y decisiones de cliente coordinados.', { after: 140 }));
-// Cronograma: cada semana es una celda; para mover una fase, cambiar el sombreado de las celdas.
-const ws = 428, wg = [3330, 1170, ...Array(12).fill(ws)];
-wg[13] = W - wg.slice(0, 13).reduce((a, b) => a + b, 0);
-const semBorde = { top: NONE, bottom: linea(), left: { style: BorderStyle.SINGLE, size: 2, color: C.semana }, right: NONE };
-plazos.push(tabla([
-  cabecera(['Fase y resultado previsto', 'Semanas', ...Array.from({ length: 12 }, (_, i) => String(i + 1))], wg, [null, null, ...Array(12).fill(CEN)]),
-  ...FASES.map(([f, r, a, b]) => new TableRow({ cantSplit: true, height: { value: 620, rule: HeightRule.ATLEAST }, children: [
-    cell([para(run(f, { size: 18, bold: true }), { after: 10 }), para(run(r, { size: 16, color: C.gris }), { after: 0 })], { w: wg[0], v: VerticalAlign.CENTER }),
-    cell(para(run(`Sem. ${a}–${b}`, { size: 18, bold: true, color: C.oroTexto }), { after: 0 }), { w: wg[1], v: VerticalAlign.CENTER }),
-    ...Array.from({ length: 12 }, (_, i) => {
-      const on = i + 1 >= a && i + 1 <= b;
-      return new TableCell({ width: { size: wg[i + 2], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
-        borders: semBorde, margins: { top: on ? 150 : 0, bottom: on ? 150 : 0, left: 0, right: 0 },
-        children: [on ? tabla([new TableRow({ children: [cell(para(run(' ', { size: 6 }), { after: 0, line: 160 }), { w: wg[i + 2], fill: C.barra, bottom: NONE, margins: { top: 40, bottom: 40, left: 0, right: 0 } })] })], [wg[i + 2]]) : para('', { after: 0 })] });
-    }),
-  ] })),
-], wg));
-
-plazos.push(h3('Pagos vinculados a la obra', { before: 320 }));
-plazos.push(texto('Los porcentajes se calculan sobre el total contratado con IVA, incluidos únicamente los opcionales aceptados. La reserva se descuenta del precio y forma parte del 40 % previo al inicio.', { after: 140 }));
-const wpg = [1800, 3038, 800, 1350, 1150, 1500];
-const celdaTotal = (c, w, al) => cell(para(run(c, { size: 18, bold: true }), { after: 0, align: al }), { w, borders: { top: linea(C.oro, 10), bottom: NONE, left: NONE, right: NONE } });
-plazos.push(tabla([
-  cabecera(['Pago', 'Hito verificable', '%', 'Base', 'IVA 10 %', 'Total'], wpg, [null, null, CEN, R, R, R]),
-  ...PAGOS.map(([n, t, h]) => new TableRow({ cantSplit: true, children: [
-    cell(para([run(`${n}  `, { size: 18, bold: true, color: C.oroTexto }), run(t, { size: 18, bold: true })], { after: 0 }), { w: wpg[0] }),
-    cell(para(run(h, { size: 18 }), { after: 0, line: 252 }), { w: wpg[1] }),
-    cell(para(run('20 %', { size: 18 }), { after: 0, align: CEN }), { w: wpg[2] }),
-    cell(para(run('9.271,80 €', { size: 18 }), { after: 0, align: R }), { w: wpg[3] }),
-    cell(para(run('927,18 €', { size: 18 }), { after: 0, align: R }), { w: wpg[4] }),
-    cell(para(run('10.198,98 €', { size: 18, bold: true }), { after: 0, align: R }), { w: wpg[5] }),
-  ] })),
-  new TableRow({ cantSplit: true, children: [celdaTotal('', wpg[0]), celdaTotal('Total proyecto base', wpg[1]), celdaTotal('100 %', wpg[2], CEN),
-    celdaTotal('46.359,00 €', wpg[3], R), celdaTotal('4.635,90 €', wpg[4], R), celdaTotal('50.994,90 €', wpg[5], R)] }),
+// ════════ 03 · PLAZOS ════════
+const s3 = [numSeccion('03 · Plazos'), h2('Planificación y forma de pago')];
+s3.push(T('Inicio previsto el 2 de noviembre de 2026. Duración del proyecto base: 10–12 semanas. El cronograma detallado y la fecha de terminación se confirman antes del inicio, con materiales, accesos y decisiones de cliente coordinados.'));
+// Cronograma: 3 filas por fase; la central lleva la barra. Para mover una fase, sombrear o quitar el sombreado de sus celdas.
+const wg = [mm(72), mm(22)]; const wsem = Math.floor((W - wg[0] - wg[1]) / 12);
+const wgs = [...wg, ...Array(11).fill(wsem), W - wg[0] - wg[1] - 11 * wsem];
+const gridL = B(.5, C.semana);
+const filasFase = ([f, res, a, b]) => {
+  const sem = (i, fill, last) => celda(vacio(), { w: wgs[i + 2], fill, bl: fill && i + 1 > a ? NIL : gridL, bb: last ? LINEA : NIL });
+  const fx = k => Array.from({ length: 12 }, (_, i) => sem(i, k === 1 && i + 1 >= a && i + 1 <= b ? C.barra : undefined, k === 2));
+  return [
+    fila([celda([P(r(f, { f: F.IS, s: 8.6 }), { lh: 12 }), P(r(res, { s: 8, c: C.gris }), { lh: 11.5 })], { w: wgs[0], rspan: 3, va: VerticalAlign.CENTER, bb: LINEA, pl: mm(2), pr: mm(2), pt: mm(2), pb: mm(2) }),
+      celda(P(r(`Sem. ${a}–${b}`, { f: F.IS, s: 8.6, c: C.oroTexto }), { lh: 12 }), { w: wgs[1], rspan: 3, va: VerticalAlign.CENTER, bb: LINEA, pl: mm(2) }), ...fx(0)], { h: mm(3) }),
+    fila(fx(1), { h: mm(3.4), exact: true }),
+    fila(fx(2), { h: mm(3) }),
+  ];
+};
+s3.push(tabla([
+  fila([th('Fase y resultado previsto', wgs[0]), th('Semanas', wgs[1]), ...Array.from({ length: 12 }, (_, i) =>
+    celda(P(r(String(i + 1), { f: F.IS, s: 7.2, c: C.blanco }), { al: CEN, lh: 10 }), { w: wgs[i + 2], fill: C.tinta, va: VerticalAlign.BOTTOM, pt: mm(2.2), pb: mm(2.2) }))], { th: true }),
+  ...FASES.flatMap(filasFase),
+], wgs));
+s3.push(h3('Pagos vinculados a la obra', { bf: mm(8) }));
+s3.push(T('Los porcentajes se calculan sobre el total contratado con IVA, incluidos únicamente los opcionales aceptados. La reserva se descuenta del precio y forma parte del 40 % previo al inicio.'));
+const wpg = [mm(34), 0, mm(13), mm(22), mm(20), mm(23)]; wpg[1] = W - wpg.reduce((a, b) => a + b, 0);
+const tdp = (c, w, o = {}) => td(c, w, { pl: mm(2), pr: mm(2), s: 8.6, lh: 12.2, ...o });
+s3.push(tabla([
+  fila([th('Pago', wpg[0]), th('Hito verificable', wpg[1]), th('%', wpg[2], { al: CEN }), th('Base', wpg[3], { al: R }), th('IVA 10 %', wpg[4], { al: R }), th('Total', wpg[5], { al: R })], { th: true }),
+  ...PAGOS.map(([n, t, h]) => fila([
+    tdp([r(n, { f: F.IS, s: 8.6, c: C.oroTexto }), r(`\u2002${t}`, { f: F.IS, s: 8.6 })], wpg[0]),
+    tdp(r(h, { s: 8.6 }), wpg[1]), tdp(r('20 %', { s: 8.6 }), wpg[2], { al: CEN }),
+    tdp(r('9.271,80 €', { s: 8.6 }), wpg[3], { al: R }), tdp(r('927,18 €', { s: 8.6 }), wpg[4], { al: R }), tdp(r('10.198,98 €', { f: F.IS, s: 8.6 }), wpg[5], { al: R })])),
+  fila([tdp('', wpg[0], cierre), tdp(r('Total proyecto base', { f: F.IS, s: 8.6 }), wpg[1], cierre), tdp(r('100 %', { f: F.IS, s: 8.6 }), wpg[2], { ...cierre, al: CEN }),
+    tdp(r('46.359,00 €', { f: F.IS, s: 8.6 }), wpg[3], { ...cierre, al: R }), tdp(r('4.635,90 €', { f: F.IS, s: 8.6 }), wpg[4], { ...cierre, al: R }),
+    tdp(r('50.994,90 €', { s: 8.6, b: true }), wpg[5], { ...cierre, al: R })]),
 ], wpg));
-plazos.push(para('', { after: 100 }));
-plazos.push(texto('Cada solicitud de pago se acompaña de la factura correspondiente y, en los avances, del registro de trabajos realizados. Medio de pago: transferencia bancaria a la cuenta de Renovare Design & Build SL que figura en cada factura.'));
-plazos.push(texto('Si se acepta la puerta principal, cada pago pasa a 9.509,00 € + 950,90 € de IVA = 10.459,90 €.', { size: 17, color: C.gris }));
+s3.push(T('Cada solicitud de pago se acompaña de la factura correspondiente y, en los avances, del registro de trabajos realizados. Medio de pago: transferencia bancaria a la cuenta de Renovare Design & Build SL que figura en cada factura.', { bf: mm(4) }));
+s3.push(nota('Si se acepta la puerta principal, cada pago pasa a 9.509,00 € + 950,90 € de IVA = 10.459,90 €.'));
 
-// ── 04 · Condiciones ────────────────────────────────────────────
-const condiciones = [...seccion('04 · Condiciones', 'Condiciones de la propuesta')];
-CONDICIONES.forEach(([t, ps], i) => { condiciones.push(h3(t, { before: i ? 200 : 0 })); ps.forEach(p => condiciones.push(texto(p, { size: 19 }))); });
+// ════════ 04 · CONDICIONES ════════
+const s4 = [numSeccion('04 · Condiciones'), h2('Condiciones de la propuesta')];
+CONDICIONES.forEach(([t, ps], i) => { s4.push(h3(t, { bf: i ? mm(4.2) : 0 })); ps.forEach(p => s4.push(T(p, { s: 9, af: mm(2.2) }))); });
 
-// ── 05 · Aceptación ─────────────────────────────────────────────
-const aceptacion = [...seccion('05 · Aceptación', 'Aceptación de la propuesta')];
-aceptacion.push(tabla([['Cliente', 'Cristian Nohalez García · DNI o NIF 03151845V'], ['Obra', 'Calle Barig 3, Benicalap · 46025'], ['Oferta', 'SV-0045-03 · Fecha 07/10/2026']]
-  .map(([l, v]) => new TableRow({ cantSplit: true, children: [
-    cell(para(run(l, { color: C.gris }), { after: 0 }), { w: 2800, margins: { top: 90, bottom: 90, left: 0, right: 0 } }),
-    cell(para(run(v, { bold: true }), { after: 0 }), { w: 6838, margins: { top: 90, bottom: 90, left: 0, right: 0 } })] })),
-  [2800, 6838], { borders: { ...SIN_BORDES, top: linea() } }));
-aceptacion.push(para(run('Se acepta el proyecto base y únicamente las opciones marcadas a continuación. Las alternativas no marcadas quedan fuera del encargo.'), { before: 200, after: 140, line: 276 }));
-const wsel = [1900, 5638, 2100];
-aceptacion.push(tabla([
-  cabecera(['Selección', 'Alcance', 'Total antes de IVA'], wsel, [null, null, R]),
-  new TableRow({ cantSplit: true, children: [cell(para(run('Base incluida', { bold: true, color: C.oroTexto, size: 19 }), { after: 0 }), { w: wsel[0] }),
-    cell(para(run('Proyecto base', { size: 19 }), { after: 0 }), { w: wsel[1] }), cell(para(run('46.359,00 €', { size: 19 }), { after: 0, align: R }), { w: wsel[2] })] }),
-  new TableRow({ cantSplit: true, children: [cell(para([run('☐ ', { font: 'Segoe UI Symbol', size: 22 }), run('Sí    ', { size: 19 }), run('☐ ', { font: 'Segoe UI Symbol', size: 22 }), run('No', { size: 19 })], { after: 0 }), { w: wsel[0] }),
-    cell(para(run('Opción · Partida 27. Puerta principal: suministro e instalación', { size: 19 }), { after: 0 }), { w: wsel[1] }), cell(para(run('1.186,00 €', { size: 19 }), { after: 0, align: R }), { w: wsel[2] })] }),
+// ════════ 05 · ACEPTACIÓN ════════
+const s5 = [numSeccion('05 · Aceptación'), h2('Aceptación de la propuesta')];
+s5.push(tabla([['Cliente', 'Cristian Nohalez García · DNI o NIF 03151845V'], ['Obra', 'Calle Barig 3, Benicalap · 46025'], ['Oferta', 'SV-0045-03 · Fecha 07/10/2026']]
+  .map(([l, v], i) => fila([td(r(l, { s: 9.6, c: C.gris }), mm(52), { pl: 0, pt: mm(1.7), pb: mm(1.7), lh: 14, bt: i ? undefined : LINEA }),
+    td(r(v, { f: F.IM, s: 9.6 }), W - mm(52), { pl: 0, pt: mm(1.7), pb: mm(1.7), lh: 14, bt: i ? undefined : LINEA })])), [mm(52), W - mm(52)]));
+s5.push(T('Se acepta el proyecto base y únicamente las opciones marcadas a continuación. Las alternativas no marcadas quedan fuera del encargo.', { bf: mm(4), af: mm(3) }));
+const wsel = [mm(34), 0, mm(38)]; wsel[1] = W - wsel[0] - wsel[2];
+const casilla = () => r('□', { f: F.S, s: 11 });
+s5.push(tabla([
+  fila([th('Selección', wsel[0]), th('Alcance', wsel[1]), th('Total antes de IVA', wsel[2], { al: R })], { th: true }),
+  fila([td(r('Base incluida', { f: F.IS, s: 8.9, c: C.oroTexto }), wsel[0]), td('Proyecto base', wsel[1]), td('46.359,00 €', wsel[2], { al: R })]),
+  fila([td([casilla(), r(' Sí      ', { s: 8.9 }), casilla(), r(' No', { s: 8.9 })], wsel[0]), td('Opción · Partida 27. Puerta principal: suministro e instalación', wsel[1]), td('1.186,00 €', wsel[2], { al: R })]),
 ], wsel));
-aceptacion.push(para('', { after: 140 }));
-const wcmp = [4638, 2500, 2500];
-aceptacion.push(tabla([
-  cabecera(['Importe contratado', 'Proyecto base', 'Con puerta principal'], wcmp, [null, R, R]),
+const wcmp = [0, mm(42), mm(42)]; wcmp[0] = W - wcmp[1] - wcmp[2];
+s5.push(vacio({ bf: mm(3) }));
+s5.push(tabla([
+  fila([th('Importe contratado', wcmp[0]), th('Proyecto base', wcmp[1], { al: R }), th('Con puerta principal', wcmp[2], { al: R })], { th: true }),
   ...[['Base imponible', '46.359,00 €', '47.545,00 €'], ['IVA 10 %', '4.635,90 €', '4.754,50 €'], ['Total con IVA', '50.994,90 €', '52.299,50 €', true], ['Reserva del 20 % (IVA incluido)', '10.198,98 €', '10.459,90 €']]
-    .map(([l, a, b, t]) => new TableRow({ cantSplit: true, children: [l, a, b].map((v, i) => cell(para(run(v, { size: 19, bold: t }), { after: 0, align: i ? R : undefined }),
-      { w: wcmp[i], fill: t ? C.oroClaro : undefined, bottom: t ? linea(C.oro, 10) : linea() })) })),
+    .map(([l, a, b, t]) => fila([l, a, b].map((v, i) => td(r(v, { s: 9, b: t }), wcmp[i], { al: i ? R : undefined, fill: t ? C.oroClaro : undefined, bb: t ? B(1.2, C.oro) : LINEA, pt: mm(1.9), pb: mm(1.9) })))),
 ], wcmp));
-aceptacion.push(tabla([new TableRow({ cantSplit: true, children: [
-  cell([etiqueta('Inicio acordado', { size: 13, color: C.gris, after: 160 }), para('', { after: 0, border: { bottom: linea(C.tinta, 6) } })], { w: 4219, margins: { top: 200, bottom: 90, left: 0, right: 600 } }),
-  cell([etiqueta('Duración acordada', { size: 13, color: C.gris, after: 20 }), para(run('12 semanas', { bold: true }), { after: 0 })], { w: 5419, margins: { top: 200, bottom: 90, left: 400, right: 0 } }),
-] })], [4219, 5419]));
-aceptacion.push(para(run('Declaramos haber revisado el alcance, las exclusiones, los materiales, los importes con IVA, el calendario y los hitos de pago. Los puntos que afectaban al precio o al alcance están resueltos y reflejados en esta versión.'), { before: 220, after: 200, line: 276 }));
-const firma = (por, nombre) => cell([etiqueta(por, { size: 14, after: 0 }), para('', { after: 0, before: 900, border: { bottom: linea(C.tinta, 6) } }),
-  para(run(nombre, { bold: true }), { before: 100, after: 20 }), para([run('Fecha  ', { color: C.gris }), run('______________________', { color: C.gris })], { after: 0 })],
-  { w: 4519, bottom: NONE, margins: { top: 0, bottom: 0, left: 0, right: 0 } });
-aceptacion.push(tabla([new TableRow({ cantSplit: true, children: [firma('Por el cliente', 'Cristian Nohalez García'), cell(para('', { after: 0 }), { w: 600, bottom: NONE }),
-  firma('Por Renovare Design & Build SL', 'Sebastián Vanegas · Administrador')] })], [4519, 600, 4519]));
-aceptacion.push(para('', { after: 200 }));
-aceptacion.push(destacado('Después de la firma', 'Tras la firma y el pago de reserva, confirmamos por escrito la fecha de inicio y coordinamos el calendario definitivo y las elecciones necesarias.'));
+s5.push(vacio({ bf: mm(4) }));
+s5.push(tabla([fila([
+  celda([rot('Inicio acordado', { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(1.5), bd: { bottom: B(.8, C.tinta) } })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2), pr: mm(8) }),
+  celda([rot('Duración acordada', { f: F.IM, s: 6.9, c: C.gris, sp: .7 }), P(r('12 semanas', { f: F.IS, s: 9.6 }), { lh: 14, bf: mm(.6) })], { w: W / 2, bt: LINEA, bb: LINEA, pt: mm(2.2), pb: mm(2.2) }),
+])], [W / 2, W / 2]));
+s5.push(T('Declaramos haber revisado el alcance, las exclusiones, los materiales, los importes con IVA, el calendario y los hitos de pago. Los puntos que afectaban al precio o al alcance están resueltos y reflejados en esta versión.', { bf: mm(5) }));
+const wfir = Math.round((W - mm(14)) / 2);
+const firma = (por, nombre) => celda([rot(por, { s: 7.6, sp: .9 }), P(r('', { s: 9.6 }), { lh: 14, bf: mm(15), bd: { bottom: B(.8, C.tinta) } }),
+  P(r(nombre, { f: F.IS, s: 9.6 }), { lh: 14, bf: mm(2) }),
+  P(r('Fecha   ______ / ______ / ____________', { s: 9.6, c: C.gris }), { lh: 14, bf: mm(1.5) })], { w: wfir });
+s5.push(vacio({ bf: mm(5) }));
+s5.push(tabla([fila([firma('Por el cliente', 'Cristian Nohalez García'), celda(vacio(), { w: W - 2 * wfir }), firma('Por Renovare Design & Build SL', 'Sebastián Vanegas · Administrador')])], [wfir, W - 2 * wfir, wfir]));
+s5.push(...caja('Después de la firma', 'Tras la firma y el pago de reserva, confirmamos por escrito la fecha de inicio y coordinamos el calendario definitivo y las elecciones necesarias.', mm(6)));
 
-// ── Cabecera y pie ──────────────────────────────────────────────
-const header = new Header({ children: [
-  new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: W }], border: { bottom: linea(C.linea, 4) }, spacing: { after: 0 },
-    children: [new ImageRun({ type: 'png', data: LOGO, transformation: { width: 92, height: Math.round(92 * LOGO_RATIO) } }),
-      run('\tPresupuesto de reforma · Ref. SV-0045-03', { size: 15, color: C.gris })] }),
-] });
-const footer = new Footer({ children: [
-  new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: W }], spacing: { before: 0, after: 0 }, children: [
-    run('Renovare Design & Build SL · CIF B-88775341 · Calle Creu Roja 1, bajo · Benetússer · www.renovaredyb.com', { size: 14, color: C.gris }),
-    new TextRun({ children: ['\t', PageNumber.CURRENT, ' / ', PageNumber.TOTAL_PAGES], font: F.texto, size: 15, bold: true, color: C.oroTexto }),
-  ] }),
-] });
+// ════════ Cabecera y pie ════════
+const pie = () => new Footer({ children: [P([
+  r('Renovare Design & Build SL · CIF B-88775341 · Calle Creu Roja 1, bajo · Benetússer · www.renovaredyb.com', { s: 7, c: C.gris }),
+  new TextRun({ children: ['\t', PageNumber.CURRENT, ' / ', PageNumber.TOTAL_PAGES], font: F.IS, size: pt(7.5), color: C.oroTexto }),
+], { tabs: [{ type: TabStopType.RIGHT, position: W }], lh: 10 })] });
+const cab = new Header({ children: [tabla([fila([
+  celda(P(new ImageRun({ type: 'png', data: LOGO, transformation: { width: Math.round(px(9.5) / LOGO_R), height: px(9.5) } })), { w: W / 2, va: VerticalAlign.BOTTOM, bb: LINEA, pb: mm(2.4) }),
+  celda(P(r('Presupuesto de reforma · Ref. SV-0045-03', { f: F.IM, s: 7.5, c: C.gris }), { al: R, lh: 10 }), { w: W / 2, va: VerticalAlign.BOTTOM, bb: LINEA, pb: mm(2.4) }),
+])], [W / 2, W / 2]), vacio()] });
 
-// ── Documento ───────────────────────────────────────────────────
+const pagina = top => ({ size: { width: 11906, height: 16838 },
+  margin: { top, bottom: mm(21), left: mm(20), right: mm(20), header: mm(9), footer: mm(12) } });
 const doc = new Document({
-  creator: 'Renovare Design & Build SL', title: 'Presupuesto de reforma · SV-0045-03', description: 'Presupuesto de reforma integral · Cristian Nohalez García',
-  styles: {
-    default: { document: { run: { font: F.texto, size: 20, color: C.tinta }, paragraph: { spacing: { line: 276, lineRule: 'auto' } } } },
-    paragraphStyles: [
-      { id: 'Titulo1', name: 'Título presupuesto', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-        run: { font: F.titulo, size: 62, color: C.tinta }, paragraph: { spacing: { before: 0, after: 40 }, outlineLevel: 0 } },
-      { id: 'Seccion', name: 'Rótulo de sección', basedOn: 'Normal', next: 'Titulo2', quickFormat: true,
-        run: { font: F.texto, size: 16, bold: true, color: C.oroTexto, allCaps: true, characterSpacing: 36 },
-        paragraph: { spacing: { before: 0, after: 140 }, keepNext: true, border: { bottom: linea(C.oro, 6) } } },
-      { id: 'Titulo2', name: 'Título de sección', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-        run: { font: F.titulo, size: 46, color: C.tinta }, paragraph: { spacing: { before: 120, after: 200 }, keepNext: true, outlineLevel: 0 } },
-      { id: 'Titulo3', name: 'Subtítulo', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-        run: { font: F.texto, size: 21, bold: true, color: C.tinta }, paragraph: { keepNext: true, outlineLevel: 1 } },
-    ],
-  },
-  sections: [{
-    properties: { titlePage: true, page: { size: { width: 11906, height: 16838 },
-      margin: { top: 1500, bottom: 1250, left: 1134, right: 1134, header: 560, footer: 560 } } },
-    headers: { default: header, first: new Header({ children: [para('', { after: 0 })] }) },
-    footers: { default: footer, first: footer },
-    children: [...portada, ...alcance, ...inversion, ...plazos, ...condiciones, ...aceptacion],
-  }],
+  creator: 'Renovare Design & Build SL', title: 'Presupuesto de reforma · SV-0045-03',
+  styles: { default: { document: { run: { font: F.I, size: pt(9.6), color: C.tinta }, paragraph: { spacing: { after: 0, line: 240, lineRule: LineRuleType.AUTO } } } } },
+  sections: [
+    { properties: { page: pagina(mm(16)) }, headers: { default: new Header({ children: [vacio()] }) }, footers: { default: pie() }, children: portada },
+    { properties: { page: pagina(mm(27)) }, headers: { default: cab }, footers: { default: pie() }, children: [...s1, ...s2, ...s3, ...s4, ...s5] },
+  ],
 });
-
 const salida = path.join(__dirname, '..', 'PRESUPUESTO NOHALEZ - SV-0045-03.docx');
 Packer.toBuffer(doc).then(b => { fs.writeFileSync(salida, b); console.log('Word generado:', salida); });
