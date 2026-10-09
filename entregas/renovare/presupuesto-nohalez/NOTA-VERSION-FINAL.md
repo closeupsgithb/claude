@@ -42,3 +42,17 @@ Las 27 partidas conservan su descripción, unidad, cantidad e importe (verificad
 - **Reseñas, años de experiencia, número de obras y plazos de garantía.** Si se presentan como reales al cliente sin serlo, es publicidad engañosa (Directiva Ómnibus y ley de consumidores) y un riesgo para Renovare. Se añaden en cuanto haya datos reales: reseñas de Google, fotos de obras, garantía por escrito.
 - **Correo con dominio.** Renovare usa renovaredyb@gmail.com en sus propuestas. No se conoce ninguna dirección @renovaredyb.com en uso, y una inventada rebotaría.
 - **Mediciones dudosas** (partidas 8, 12–13 y 19): se mantienen sin cambios. Conviene que Renovare las revise antes de enviar.
+
+## Versión Word editable (plantilla para futuros presupuestos)
+Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (8 páginas, A4). Se regenera con `word/generar-word.js`.
+
+Cómo reutilizarlo:
+1. Guardar una copia con el nombre del nuevo cliente y la nueva referencia.
+2. Cambiar la cabecera (referencia) una sola vez: Insertar › Encabezado › Editar. Se actualiza en todas las páginas. La portada no lleva cabecera.
+3. Sustituir los textos de cliente, obra, fechas, partidas e importes. **Los totales no se calculan solos**: base, IVA, total con IVA, capítulos, pagos y comparativa deben revisarse a mano.
+4. Para añadir partidas: situar el cursor en una fila de la tabla › Insertar fila debajo. La cabecera oscura se repite sola en cada página y las filas no se parten entre páginas.
+5. Cronograma: cada semana es una celda. Para mover o alargar una fase, copiar la barra dorada a las celdas de las semanas correspondientes o borrarla de las que sobren.
+6. Barras de capítulos: son una minitabla de dos celdas; se ajustan arrastrando el borde entre la parte dorada y la vacía.
+7. Estilos del documento: «Título presupuesto», «Rótulo de sección» (empieza página nueva), «Título de sección» y «Subtítulo». Aplicándolos se mantiene la identidad.
+
+Fuentes: Garamond (títulos) y Calibri (texto), incluidas con Microsoft Office en Windows y Mac. El PDF de diseño usa EB Garamond e Inter. El Word usa sus equivalentes estándar para que se vea igual en cualquier ordenador sin instalar nada.
