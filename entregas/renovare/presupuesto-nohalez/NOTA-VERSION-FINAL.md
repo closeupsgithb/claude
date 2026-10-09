@@ -44,7 +44,7 @@ Las 27 partidas conservan su descripción, unidad, cantidad e importe (verificad
 - **Mediciones dudosas** (partidas 8, 12–13 y 19): se mantienen sin cambios. Conviene que Renovare las revise antes de enviar.
 
 ## Versión Word editable (plantilla para futuros presupuestos)
-Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (8 páginas, A4). Calcado del PDF: mismas tipografías, colores, márgenes, espaciados y tablas.
+Archivo: `PRESUPUESTO NOHALEZ - SV-0045-03.docx` (10 páginas, A4; cada página termina con margen libre para que no se vea pegada a la siguiente). Calcado del PDF: mismas tipografías, colores, márgenes, espaciados y tablas.
 
 - **Fuentes incrustadas** (Inter y EB Garamond) en el propio archivo: se ve igual en cualquier ordenador sin instalar nada. Si Word avisa al abrir, aceptar. Para conservarlas al guardar: Archivo › Opciones › Guardar › «Incrustar fuentes en el archivo» (ya viene activado).
 - **Para un nuevo presupuesto**: guardar una copia y sustituir los textos. Todo el diseño está en tablas y párrafos ya formateados; al escribir encima se conserva el estilo.

@@ -25,7 +25,7 @@ CAPITULOS = [  # (capítulo, importe sin IVA)
     ('Protección, limpieza y residuos', 959),
 ]
 ORO, GRIS, TINTA, LINEA = 'A3843F', '625B50', '1C1A16', 'E2DBCD'
-ANCHO_MM, ALTO_MM = 170, 64
+ANCHO_MM, ALTO_MM = 170, 56
 EMU = 36000
 
 
