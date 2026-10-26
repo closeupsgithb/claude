@@ -55,7 +55,8 @@ function weeklyBars(weeks: AccountMetrics["semanas"], col: { strong: string; sof
     out += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${BRAND.line}" stroke-width="1" ${g === 0 ? "" : 'stroke-dasharray="3 4"'}/>`;
   }
   weeks.forEach((x, i) => {
-    const v = x.valor ?? 0;
+    if (x.valor == null) return;
+    const v = x.valor;
     const bh = Math.max(((base - top) * v) / max, 1.5);
     const bx = i * bw + bw * 0.16;
     const bwid = bw * 0.68;
@@ -175,11 +176,13 @@ export function renderReportHtml(d: ReportData, assets: Assets): string {
     })),
     { plat: "yt" as const, name: "YouTube", c: "es" as const, v0: null, v1: yt.subsIni, vh: yt.subsFin, daily: yt.subsDaily.map((x) => x.value) },
   ];
-  // YouTube: valor al inicio del periodo anterior desde la serie diaria
-  if (yt.subsDaily.length) rows[rows.length - 1].v0 = yt.subsDaily[0].value;
-  const tot0 = rows.reduce((t, r) => t + (r.v0 ?? 0), 0);
+  rows[rows.length - 1].v0 = yt.subsAtPrevStart;
+  const withStart = rows.filter((r) => r.v0 != null && r.vh != null);
+  const tot0 = withStart.reduce((t, r) => t + (r.v0 ?? 0), 0);
   const tot1 = rows.reduce((t, r) => t + (r.v1 ?? 0), 0);
   const toth = rows.reduce((t, r) => t + (r.vh ?? 0), 0);
+  const totGain = withStart.reduce((t, r) => t + ((r.vh ?? 0) - (r.v0 ?? 0)), 0);
+  const partial = withStart.length < rows.length;
   const snapRows = rows
     .map((r) => {
       const col = PLAT(r.plat).strong;
@@ -225,9 +228,9 @@ export function renderReportHtml(d: ReportData, assets: Assets): string {
     n: 2,
     footer,
     body: `<div class="card" style="padding:6px 16px 8px"><table class="snap"><thead><tr><th></th><th>Evolución</th><th class="r">${lab(addIso(p.ap))}</th><th class="r">${lab(p.a)}</th><th class="r">Hoy</th><th class="r">Desde ${lab(addIso(p.ap))}</th></tr></thead><tbody>${snapRows}
-    <tr class="tot"><td colspan="2">Total en todas las plataformas</td><td class="r muted">${num(tot0)}</td><td class="r muted">${num(tot1)}</td><td class="r"><b class="big" style="color:${BRAND.navy}">${num(toth)}</b></td><td class="r"><span class="up b">${sg(toth - tot0)}</span></td></tr></tbody></table></div>
-    <p class="note">Último dato disponible: ${lab(p.b)}. Los suscriptores de YouTube se redondean a centenas en la plataforma.</p>
-    ${concl(BRAND.navy, "#E6F0F8", `Entre las cinco cuentas se suman <b>${num(toth)}</b> seguidores y suscriptores, <b>${sg(toth - tot0)}</b> desde el ${lab(addIso(p.ap))}.`, "Lectura")}`,
+    <tr class="tot"><td colspan="2">Total en todas las plataformas</td><td class="r muted">${partial ? "—" : num(tot0)}</td><td class="r muted">${partial ? "—" : num(tot1)}</td><td class="r"><b class="big" style="color:${BRAND.navy}">${num(toth)}</b></td><td class="r"><span class="up b">${sg(totGain)}</span></td></tr></tbody></table></div>
+    <p class="note">Último dato disponible: ${lab(p.b)}. Los suscriptores de YouTube se redondean a centenas en la plataforma.${partial ? " El crecimiento total excluye las cuentas sin histórico al inicio del periodo." : ""}</p>
+    ${concl(BRAND.navy, "#E6F0F8", `Entre las cinco cuentas se suman <b>${num(toth)}</b> seguidores y suscriptores, <b>${sg(totGain)}</b> desde el ${lab(addIso(p.ap))}${partial ? " (sin contar las cuentas sin histórico)" : ""}.`, "Lectura")}`,
   });
 
   /* Página 3: resumen */
@@ -326,13 +329,15 @@ export function renderReportHtml(d: ReportData, assets: Assets): string {
 
   /* Mejores piezas */
   const pieceCard = (pc: Piece, col: string, isYt = false) => {
-    const img = assets.thumbs[pc.id];
+    // Los Reels/vídeos de Facebook llegan sin imagen útil (fotograma negro): se muestra un marcador neutro.
+    const noThumb = !isYt && pc.source === "facebook" && (pc.type === "Reel" || pc.type === "Vídeo");
+    const img = noThumb ? undefined : assets.thumbs[pc.id];
     const txt = esc(pc.content.replace(/\s+/g, " ").slice(0, isYt ? 56 : 64)) + "…";
     const metric = isYt ? `${num(pc.views)} visualizaciones` : `${num(pc.interactions)} interacciones`;
     const typeLabel = isYt ? (pc.type === "short" ? "Short" : "Vídeo largo") : pc.type;
     const reach = !isYt && pc.reach ? ` · ${num(pc.reach)} de alcance` : "";
     return `<div class="card piece${isYt ? " yt" : ""}" style="${isYt ? `border-top:4px solid ${col}` : `border-left:4px solid ${col}`}">
-      ${img ? `<img src="${img}">` : `<div class="noimg"></div>`}<div class="pt"><b style="color:${col}">${metric}</b><br>${esc(typeLabel)} · ${lab(pc.date.slice(0, 10))}${reach}<br><span class="muted">${txt}</span></div></div>`;
+      ${img ? `<img src="${img}">` : `<div class="noimg">${esc(isYt ? "" : pc.type)}</div>`}<div class="pt"><b style="color:${col}">${metric}</b><br>${esc(typeLabel)} · ${lab(pc.date.slice(0, 10))}${reach}<br><span class="muted">${txt}</span></div></div>`;
   };
   const topBlock = (net: Net, c: "es" | "pt") => {
     const col = PLAT(netKey(net)).strong;
@@ -434,6 +439,9 @@ function facebookSentence(net: number, prev: number, es: AccountMetrics, pt: Acc
 }
 
 function youtubeSentence(yt: ReportData["youtube"], prevTag: string) {
+  if (yt.netos == null) {
+    return `YouTube registra <b>${num(yt.vistas)}</b> visualizaciones (${prevTag.toLowerCase()}: ${num(yt.vistasPrev)}) con ${yt.piezas} vídeos publicados frente a ${yt.piezasPrev}. Los suscriptores todavía no tienen histórico completo en este periodo.`;
+  }
   return `YouTube suma <b>${sg(yt.netos)}</b> suscriptores (${prevTag.toLowerCase()}: ${sg(yt.netosPrev)}) y <b>${num(yt.vistas)}</b> visualizaciones (${prevTag.toLowerCase()}: ${num(yt.vistasPrev)}) con ${yt.piezas} vídeos publicados frente a ${yt.piezasPrev}.`;
 }
 
@@ -461,8 +469,8 @@ function conclusions(
   out.push({
     tag: "YouTube",
     color: BRAND.yt.strong,
-    score: dYt ?? 0,
-    text: `Suma <b>${sg(yt.netos)}</b> suscriptores (${x.prevTag.toLowerCase()}: ${sg(yt.netosPrev)}) y <b>${num(yt.vistas)}</b> visualizaciones.`,
+    score: dYt ?? -1e9,
+    text: yt.netos == null ? `Registra <b>${num(yt.vistas)}</b> visualizaciones (${x.prevTag.toLowerCase()}: ${num(yt.vistasPrev)}); los suscriptores aún no tienen histórico completo.` : `Suma <b>${sg(yt.netos)}</b> suscriptores (${x.prevTag.toLowerCase()}: ${sg(yt.netosPrev)}) y <b>${num(yt.vistas)}</b> visualizaciones.`,
   });
   const ig = d.accounts.find((a) => a.net === "instagram" && a.country === "es");
   if (ig && ig.tasa != null) {
@@ -486,7 +494,7 @@ function conclusions(
     tag: "Total",
     color: BRAND.navy,
     score: 0,
-    text: `Entre todas las plataformas se suman <b>${num(x.toth)}</b> seguidores y suscriptores (<b>${sg(x.toth - x.tot0)}</b> desde el inicio del periodo anterior).`,
+    text: `Entre todas las plataformas se suman <b>${num(x.toth)}</b> seguidores y suscriptores.`,
   });
   // Lo que más crece, primero.
   const growth = out.filter((o) => ["Instagram", "Facebook", "YouTube"].includes(o.tag)).sort((a, b) => b.score - a.score);
@@ -553,7 +561,7 @@ tr.tot td{border-top:2px solid ${BRAND.navy};border-bottom:0;padding-top:11px;fo
 .three{display:flex;gap:10px}.three .piece{flex:1}
 .piece{display:flex;gap:9px;padding:8px}
 .piece img{width:21mm;height:21mm;border-radius:6px;object-fit:cover;flex:none}
-.noimg{width:21mm;height:21mm;border-radius:6px;background:${BRAND.mist};flex:none}
+.noimg{width:21mm;height:21mm;border-radius:6px;background:${BRAND.mist};flex:none;display:flex;align-items:center;justify-content:center;font-size:8pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${BRAND.slate}}
 .piece .pt{font-size:8.4pt;line-height:1.35}.piece .pt b{font-size:9.4pt}
 .piece.yt{flex-direction:column;gap:5px}.piece.yt img{width:100%;height:25mm}
 .bl{background:#fff;border:1px solid ${BRAND.line};border-left:6px solid;border-radius:10px;padding:11px 16px;margin-bottom:10px;display:flex;gap:14px;align-items:center}

@@ -77,6 +77,7 @@ export type Youtube = {
   pctTiempoCortos: number | null;
   semanas: Array<{ inicio: string; fin: string; valor: number | null; actual: boolean }>;
   subsDaily: Array<{ day: string; value: number }>;
+  subsAtPrevStart: number | null;
   top: Piece[];
 };
 
@@ -247,7 +248,11 @@ const median = (xs: number[]) => {
 };
 
 function netGain(s: Array<{ day: string; value: number }> | undefined, a: string, b: string) {
-  const ini = lastBefore(s, a) ?? firstFrom(s, a);
+  // Si la serie empieza después del inicio del periodo, el crecimiento sería parcial: mejor no darlo (se muestra "—").
+  const first = s?.[0]?.day;
+  const before = lastBefore(s, a);
+  if (before == null && first && first > addDays(a, 5)) return { ini: null as number | null, fin: lastAtOrBefore(s, b), netos: null as number | null };
+  const ini = before ?? firstFrom(s, a);
   const fin = lastAtOrBefore(s, b);
   return { ini, fin, netos: ini != null && fin != null ? fin - ini : null };
 }
@@ -351,6 +356,7 @@ export async function buildReport(sql: Sql, kind: PeriodKind, id: string): Promi
     pctTiempoCortos: totalWatch ? (shortWatch / totalWatch) * 100 : null,
     semanas: weeks(subs, period.b, nWeeks, period.a),
     subsDaily: (subs ?? []).filter((p) => p.day >= period.ap),
+    subsAtPrevStart: lastBefore(subs, period.ap) ?? ((subs?.[0]?.day ?? "9999") <= addDays(period.ap, 5) ? firstFrom(subs, period.ap) : null),
     top: [...vCur].sort((x, y) => (y.views ?? 0) - (x.views ?? 0)).slice(0, 3),
   };
 
