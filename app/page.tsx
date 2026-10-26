@@ -12,6 +12,7 @@ import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import ContentIntelligence from "@/components/ContentIntelligence";
 import Logo from "@/components/Logo";
+import ReportButton from "@/components/ReportButton";
 import YoutubeTopCards from "@/components/YoutubeTopCards";
 import YoutubeTopContent from "@/components/YoutubeTopContent";
 import YoutubeFormatComparison from "@/components/YoutubeFormatComparison";
@@ -636,6 +637,7 @@ export default function Page() {
               Actualizado {new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date(data.generatedAt))}
             </span>
           )}
+          <ReportButton buttonStyle={secondaryButtonStyle} />
           <button onClick={exportCsv} disabled={!data} style={secondaryButtonStyle}>
             Exportar CSV
           </button>
