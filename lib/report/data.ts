@@ -202,8 +202,10 @@ export async function latestDay(sql: Sql): Promise<string | null> {
 
 /** Periodos con datos suficientes (para el selector del dashboard). */
 export async function availablePeriods(sql: Sql): Promise<{ meses: string[]; trimestres: string[]; desde: string | null; hasta: string | null }> {
+  // El histórico "completo" empieza cuando todas las cuentas ya tienen datos (la que empieza más tarde manda).
   const r = (await sql.query(
-    `SELECT to_char(min(day), 'YYYY-MM-DD') AS d0, to_char(max(day), 'YYYY-MM-DD') AS d1 FROM series_daily WHERE source IN ('instagram','facebook') AND metric = 'followers'`
+    `SELECT to_char(max(m), 'YYYY-MM-DD') AS d0, to_char((SELECT max(day) FROM series_daily WHERE source IN ('instagram','facebook') AND metric = 'followers'), 'YYYY-MM-DD') AS d1
+       FROM (SELECT min(day) AS m FROM series_daily WHERE source IN ('instagram','facebook') AND metric = 'followers' GROUP BY country, source) t`
   )) as Array<{ d0: string | null; d1: string | null }>;
   const d0 = r[0]?.d0;
   const d1 = r[0]?.d1;
