@@ -11,9 +11,9 @@ export const BRAND = {
   mist: "#EEF2F6",
   line: "#DCE3EA",
   // Color por plataforma: se distingue de un vistazo.
-  ig: { strong: "#833AB4", soft: "#D2BBE6", tint: "#F3ECF9" },
-  fb: { strong: "#1877F2", soft: "#A9CBFA", tint: "#E8F1FE" },
-  yt: { strong: "#D90000", soft: "#F5A3A3", tint: "#FDECEC" },
+  ig: { strong: "#6A4C93", soft: "#D5CBE6", tint: "#F2EFF7" },
+  fb: { strong: "#2B6CB8", soft: "#B7CDE8", tint: "#E9F0F9" },
+  yt: { strong: "#C0392B", soft: "#EBB5AF", tint: "#FBEDEB" },
   up: "#1E7A47",
   down: "#B7791F",
 };

@@ -135,8 +135,9 @@ const kpi = (value: string, label: string, deltaHtml: string, color: string) =>
   `<div class="card kpi" style="border-top:4px solid ${color}"><b style="color:${color}">${value}</b><span>${label}</span>${deltaHtml}</div>`;
 
 function page(opts: { title: string; sub: string; band: string; bandColor: string; body: string; n: number; footer: string }) {
+  // Cabecera clara con el logotipo en su azul oficial; el color de la plataforma va en la línea y la etiqueta.
   return `<section class="page">
-  <div class="band" style="background:${opts.bandColor}"><span>${esc(opts.band)}</span><span class="logo">${logoSvg("#fff", 14)}</span></div>
+  <div class="top" style="border-bottom-color:${opts.bandColor}"><span class="logo">${logoSvg(BRAND.blue, 15)}</span><span class="pl" style="color:${opts.bandColor}">${esc(opts.band)}</span></div>
   <div class="in"><h1>${esc(opts.title)}</h1><p class="sub">${esc(opts.sub)}</p><div class="rule" style="background:${opts.bandColor}"></div>${opts.body}</div>
   <div class="foot"><span>${esc(opts.footer)}</span><span>${opts.n}</span></div></section>`;
 }
@@ -203,7 +204,7 @@ export function renderReportHtml(d: ReportData, assets: Assets): string {
     : `<div class="veil flat"></div>`;
   const cover = `<section class="page cover">${hero}
   <div class="cover-in">
-    <div class="cover-top">${logoSvg("#fff", 22)}</div>
+    <div class="cover-top">${logoSvg("#fff", 26)}</div>
     <div class="cover-mid">
       <div class="eyebrow">Informe ${isQ ? "trimestral" : "mensual"} · Redes sociales</div>
       <div class="cover-title">Resultados de<br>${esc(p.label.toLowerCase().replace(/^./, (c) => c.toUpperCase()))}</div>
@@ -511,8 +512,9 @@ html,body{margin:0;padding:0}
 body{font-family:'Barlow',Arial,sans-serif;color:${BRAND.ink};font-size:10.5pt;line-height:1.45;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .page{width:210mm;height:297mm;position:relative;overflow:hidden;page-break-after:always;background:#F5F7FA}
 .page:last-child{page-break-after:auto}
-.band{height:13mm;display:flex;align-items:center;justify-content:space-between;padding:0 18mm;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:11pt}
-.band .logo{display:flex}
+.top{height:17mm;display:flex;align-items:center;justify-content:space-between;padding:0 18mm;background:#fff;border-bottom:3px solid ${BRAND.blue}}
+.top .logo{display:flex}
+.top .pl{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.2em;text-transform:uppercase;font-size:12pt}
 .in{padding:9mm 18mm 0}
 h1{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:28pt;line-height:1.05;margin:0 0 2px;letter-spacing:.005em;text-transform:uppercase}
 .sub{color:${BRAND.slate};font-size:10.5pt;margin:0}
