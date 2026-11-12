@@ -96,6 +96,34 @@ export default function EscuchaHub({ items, ownAnalysis }: { items: ContentItem[
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
   }, [scope]);
 
+  const formats = useMemo(() => {
+    const m = new Map<string, number[]>();
+    for (const i of items) if (i.engagementRate !== null) m.set(i.type, [...(m.get(i.type) ?? []), i.engagementRate]);
+    return [...m.entries()].map(([name, v]) => ({ name, eng: v.reduce((a, b) => a + b, 0) / v.length })).sort((a, b) => b.eng - a.eng);
+  }, [items]);
+  const themes = useMemo(() => {
+    const defs: Array<[string, string[]]> = [
+      ["Producto y lanzamientos", ["nuevo", "nueva", "novedad", "lanzamiento", "presentamos", "disponible", "caña", "carrete", "señuelo"]],
+      ["Técnica y consejos", ["consejo", "truco", "cómo", "como ", "aprende", "técnica", "montaje", "guía"]],
+      ["Especies y capturas", [...SPECIES, "captura", "pez", "peces"]],
+      ["Comunidad y eventos", ["evento", "feria", "concurso", "campeonato", "equipo", "team", "embajador", "comunidad", "sorteo"]],
+    ];
+    return defs.map(([name, kw]) => {
+      const its = withText.filter((i) => kw.some((w) => norm(i.content).includes(norm(w))));
+      return { name, count: its.length, eng: mean(its.map((i) => i.engagementRate).filter((v): v is number => v !== null)) };
+    }).sort((a, b) => b.count - a.count);
+  }, [withText]);
+  const mentions = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of items) for (const t of (i.content ?? "").matchAll(/@([\w.]{3,})/g)) m.set(t[1], (m.get(t[1]) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [items]);
+  const allTags = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of items) for (const t of (i.content ?? "").matchAll(/#(\w{4,})/g)) m.set(t[1], (m.get(t[1]) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [items]);
+
   const comp = [
     { name: "Daiwa España", s: COMP_IG[1] }, { name: "Fox Int. España", s: COMP_IG[2] }, { name: "Hart Fishing", s: COMP_IG[3] },
   ].map(({ name, s }) => {
@@ -129,6 +157,7 @@ export default function EscuchaHub({ items, ownAnalysis }: { items: ContentItem[
         .eh-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
         .eh-stat{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--surface-1)}
         .eh-stat b{display:block;font-size:28px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+        .eh-stat .eh-chip b,.eh-stat span b{display:inline;font-size:inherit;font-weight:800;letter-spacing:0}
         .eh-chip{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--border);background:var(--surface-1);border-radius:999px;padding:5px 12px;font-size:12.5px}
         .eh-post{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface-1);text-decoration:none;color:inherit}
         .eh-post img{width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--gridline)}
@@ -243,19 +272,46 @@ export default function EscuchaHub({ items, ownAnalysis }: { items: ContentItem[
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "10px 0 0" }}>
             Bocarde TV ({fmt(COMP_YT[1].values[3]!)} suscriptores) y Fox Fishing TV España ({fmt(COMP_YT[2].values[3]!)}) se siguen en YouTube.
           </p>
-          <div style={{ ...eyebrow, margin: "20px 0 10px" }}>Módulos por conectar</div>
-          <div className="eh-grid3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))" }}>
-            {[
-              ["Contenido de la comunidad", "Publicaciones que etiquetan a Shimano, clasificadas por técnica, especie y país."],
-              ["Clasificación de comentarios", "Preguntas técnicas, de producto, de precio y de soporte para detectar dudas recurrentes."],
-              ["Piezas de la competencia", "Formatos, frecuencia y publicaciones con más respuesta de Daiwa, Fox y Hart."],
-            ].map(([t, d]) => (
-              <div key={t} className="eh-soon">
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{t}</div>
-                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>{d}</p>
-                <span className="eh-btn">Pendiente de conectar</span>
+          <div style={{ ...eyebrow, margin: "22px 0 10px" }}>Lectura del contenido de Shimano Iberia</div>
+          <div className="eh-grid3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))" }}>
+            <div className="eh-stat">
+              <span style={eyebrow}>Formato que mejor funciona</span>
+              {formats.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                  {formats.map((f2, i) => (
+                    <div key={f2.name} style={{ display: "grid", gridTemplateColumns: "74px 1fr 52px", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                      <span style={{ fontWeight: i === 0 ? 800 : 500 }}>{f2.name}</span>
+                      <span style={{ height: 9, borderRadius: 5, background: "var(--gridline)", overflow: "hidden" }}>
+                        <span style={{ display: "block", height: "100%", width: `${(f2.eng / formats[0].eng) * 100}%`, background: i === 0 ? "var(--series-es)" : "var(--series-other)", borderRadius: 5 }} />
+                      </span>
+                      <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{pct(f2.eng)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Sin datos en el periodo.</p>}
+              <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: "10px 0 0" }}>Interacción media por formato.</p>
+            </div>
+            <div className="eh-stat">
+              <span style={eyebrow}>Temática del contenido</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                {themes.map((th) => (
+                  <div key={th.name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, fontSize: 12.5 }}>
+                    <span>{th.name}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--text-secondary)" }}><b>{th.count}</b> pub. · {th.eng !== null ? pct(th.eng) : "s/d"}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+              <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: "10px 0 0" }}>Clasificación por vocabulario del texto.</p>
+            </div>
+            <div className="eh-stat">
+              <span style={eyebrow}>Menciones y etiquetas</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                {mentions.length ? mentions.map(([m, n]) => <span key={m} className="eh-chip">@{m} <b>{n}</b></span>) : <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Sin menciones en el periodo.</span>}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                {allTags.map(([m, n]) => <span key={m} className="eh-chip">#{m} <b>{n}</b></span>)}
+              </div>
+            </div>
           </div>
         </section>
       )}
