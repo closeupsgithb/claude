@@ -12,6 +12,7 @@ import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import ContentIntelligence from "@/components/ContentIntelligence";
 import Logo from "@/components/Logo";
+import { AnaliticaView, CompetenciaView, EscuchaView } from "@/components/NewSections";
 import ReportButton from "@/components/ReportButton";
 import YoutubeTopCards from "@/components/YoutubeTopCards";
 import YoutubeTopContent from "@/components/YoutubeTopContent";
@@ -494,6 +495,7 @@ function selectInsights(candidates: InsightCandidate[], max = 5): string[] {
 }
 
 export default function Page() {
+  const [view, setView] = useState<"redes" | "analitica" | "competencia" | "escucha">("redes");
   const [platform, setPlatform] = useState<"instagram" | "facebook" | "youtube">("instagram");
   const [days, setDays] = useState(30);
   const [evolutionMetric, setEvolutionMetric] = useState<EvolutionMetric>("followers");
@@ -647,6 +649,29 @@ export default function Page() {
         </div>
       </header>
 
+      <nav style={{ display: "flex", gap: 22, borderBottom: "1px solid var(--border)", marginBottom: 18, overflowX: "auto" }}>
+        {([["redes", "Redes"], ["analitica", "Analítica"], ["competencia", "Competencia"], ["escucha", "Escucha social"]] as const).map(([k, l]) => (
+          <button
+            key={k}
+            onClick={() => setView(k)}
+            style={{
+              background: "none", border: 0, cursor: "pointer", padding: "10px 0", fontSize: 14, whiteSpace: "nowrap",
+              fontWeight: view === k ? 800 : 500,
+              color: view === k ? "var(--text-primary)" : "var(--text-muted)",
+              borderBottom: view === k ? "3px solid var(--series-es)" : "3px solid transparent",
+              marginBottom: -1,
+            }}
+          >
+            {l}
+          </button>
+        ))}
+      </nav>
+
+      {view === "analitica" && <AnaliticaView />}
+      {view === "competencia" && <CompetenciaView />}
+      {view === "escucha" && data && <EscuchaView ownAnalysis={<ContentIntelligence items={data.posts} />} />}
+
+      {view === "redes" && (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 4 }}>
           {(["instagram", "facebook", "youtube"] as const).map((p) => (
@@ -663,8 +688,9 @@ export default function Page() {
           ))}
         </div>
       </div>
+      )}
 
-      {error?.error === "MISSING_CREDENTIALS" && (
+      {view === "redes" && error?.error === "MISSING_CREDENTIALS" && (
         <div style={noticeStyle}>
           <strong>Faltan credenciales de Metricool.</strong> Añade las variables de entorno{" "}
           <code>METRICOOL_USER_TOKEN</code> y <code>METRICOOL_USER_ID</code> en Vercel → Settings → Environment
@@ -678,7 +704,7 @@ export default function Page() {
         </div>
       )}
 
-      {data && platform !== "youtube" && (
+      {view === "redes" && data && platform !== "youtube" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <InsightBanner insights={insights} periodLabel={formatPeriodRange(data.from, data.to, data.days)} />
 
@@ -795,7 +821,7 @@ export default function Page() {
         </div>
       )}
 
-      {data && platform === "youtube" && (
+      {view === "redes" && data && platform === "youtube" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <InsightBanner insights={insights} periodLabel={formatPeriodRange(data.from, data.to, data.days)} />
 
