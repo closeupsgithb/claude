@@ -61,7 +61,7 @@ export function IberiaMap({ compact = false }: { compact?: boolean }) {
         Mapa de calor · península ibérica
       </div>
       <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-        Zonas donde se concentra la comunidad de cada red. Los porcentajes por país son datos de Metricool.
+        Zonas donde se concentra la comunidad de cada red, con el reparto real por país.
       </p>
       <div className="im-pills" role="group" aria-label="Red social">
         {NETS.map((n) => (
