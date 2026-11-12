@@ -161,9 +161,7 @@ export function AnaliticaView() {
         <AgeGender />
       </div>
       <p style={note}>
-        Fuente: Metricool, demografía de seguidores a {AUDIENCE_AS_OF}. Metricool entrega el reparto por país; el desglose por
-        comunidad autónoma o ciudad no está disponible en esta fuente. Facebook cuenta los seguidores, no las personas
-        activas.
+        Demografía de seguidores a {AUDIENCE_AS_OF}. Facebook cuenta los seguidores, no las personas activas.
       </p>
     </div>
   );
@@ -282,6 +280,35 @@ function Offices() {
   );
 }
 
+function InstagramOffices() {
+  const rows = SALES_OFFICES.map((o) => ({ ...o, abs: o.ig11 - o.ig08, g: ((o.ig11 - o.ig08) / o.ig08) * 100 })).sort((a, b) => b.g - a.g);
+  const max = Math.max(...rows.map((r) => r.g));
+  const best = rows[0];
+  const second = rows[1];
+  return (
+    <section style={{ ...card, background: "linear-gradient(135deg, var(--surface-1), color-mix(in srgb, var(--series-es) 7%, var(--surface-1)))" }}>
+      <div style={eyebrow}>Instagram · crecimiento frente a otras oficinas de Shimano · agosto a noviembre 2026</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", margin: "8px 0 14px" }}>
+        <span style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-.03em", color: "var(--series-es)", lineHeight: 1 }}>+{pct(best.g)}</span>
+        <span style={{ fontSize: 14, color: "var(--text-secondary)", maxWidth: 520 }}>
+          Iberia suma {fmt(best.abs)} seguidores en Instagram en tres meses. La siguiente oficina crece {pct(second.g)}.
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {rows.map((r) => (
+          <div key={r.name} style={{ display: "grid", gridTemplateColumns: "84px 1fr 130px", gap: 10, alignItems: "center", fontSize: 13 }}>
+            <span style={{ fontWeight: r.highlight ? 800 : 500 }}>{r.name}</span>
+            <span style={{ display: "block", height: 14, background: "var(--gridline)", borderRadius: 7, overflow: "hidden" }}>
+              <span style={{ display: "block", height: "100%", width: `${Math.max((r.g / max) * 100, 1.5)}%`, background: r.highlight ? "var(--series-es)" : "var(--series-other)", borderRadius: 7 }} />
+            </span>
+            <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: r.highlight ? 700 : 400 }}>+{pct(r.g)} · +{fmt(r.abs)}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Targets() {
   return (
     <Block title="Objetivos 2026 · octubre frente a objetivo" sub="Las cinco comunidades superan el objetivo original del año y el ampliado.">
@@ -314,6 +341,7 @@ function Targets() {
 export function CompetenciaView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <InstagramOffices />
       <Label>Evolución frente a la competencia</Label>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
         <LineCompare series={COMP_IG} title="Instagram España" sub="Seguidores de las marcas del segmento, marzo a octubre 2026." />

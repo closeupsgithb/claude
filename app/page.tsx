@@ -12,7 +12,8 @@ import TopContent from "@/components/TopContent";
 import InsightBanner from "@/components/InsightBanner";
 import ContentIntelligence from "@/components/ContentIntelligence";
 import Logo from "@/components/Logo";
-import { AnaliticaView, CompetenciaView, EscuchaView } from "@/components/NewSections";
+import { AnaliticaView, CompetenciaView } from "@/components/NewSections";
+import EscuchaHub from "@/components/EscuchaHub";
 import ReportButton from "@/components/ReportButton";
 import YoutubeTopCards from "@/components/YoutubeTopCards";
 import YoutubeTopContent from "@/components/YoutubeTopContent";
@@ -669,7 +670,7 @@ export default function Page() {
 
       {view === "analitica" && <AnaliticaView />}
       {view === "competencia" && <CompetenciaView />}
-      {view === "escucha" && data && <EscuchaView ownAnalysis={<ContentIntelligence items={data.posts} />} />}
+      {view === "escucha" && data && <EscuchaHub items={data.posts} ownAnalysis={<ContentIntelligence items={data.posts} />} />}
 
       {view === "redes" && (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>

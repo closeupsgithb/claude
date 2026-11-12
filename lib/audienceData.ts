@@ -98,6 +98,13 @@ export const TARGETS: Array<{ name: string; oct: number; target: number; newTarg
   { name: "Facebook Portugal", oct: 3600, target: 500, newTarget: 1500 },
 ];
 
-// Reparto por comunidad autónoma (id de lib/mapPaths) y distrito de Portugal, en % de seguidores.
-// Vacío a propósito: Metricool solo entrega país. Se rellena cuando haya una fuente real (ciudades de Instagram).
-export const REGION_SHARES: Record<string, Record<string, number> | undefined> = {};
+
+// Concentración estimada de la comunidad dentro de cada país (índice relativo 0-1, sin porcentajes).
+// Criterio del equipo: mayor peso en el sur, las islas y Galicia. Se combina con el reparto real por país de Metricool.
+export const REGION_INDEX: Record<string, number> = {
+  AN: 1, CN: 0.95, GA: 0.95, IB: 0.8, VC: 0.65, MC: 0.6, CT: 0.6, AS: 0.55, MD: 0.5, EX: 0.5, CB: 0.5, PV: 0.45,
+  CE: 0.4, ML: 0.35, CM: 0.35, CL: 0.35, AR: 0.3, NC: 0.3, RI: 0.2,
+  'PT-Porto': 0.8, 'PT-Lisboa': 0.8, 'PT-Faro': 0.7, 'PT-Setúbal': 0.6, 'PT-Braga': 0.6, 'PT-Aveiro': 0.5, 'PT-VianadoCastelo': 0.5,
+  'PT-Leiria': 0.5, 'PT-Coimbra': 0.45, 'PT-Santarém': 0.35, 'PT-Beja': 0.35, 'PT-Évora': 0.3, 'PT-Viseu': 0.3, 'PT-Portalegre': 0.25,
+  'PT-CasteloBranco': 0.25, 'PT-VilaReal': 0.25, 'PT-Guarda': 0.2, 'PT-Bragança': 0.2,
+};
