@@ -13,7 +13,7 @@ export const maxDuration = 60;
  *   /api/informe?tipo=trimestre&id=2026-Q3      → PDF del trimestre
  *   añadir &formato=html para verlo en el navegador sin generar el PDF
  *   /api/informe?periodos=1                     → lista de periodos disponibles
- * Cualquiera con el enlace del dashboard puede generarlo (decisión de Closeup: el enlace es privado).
+ * Cualquiera con el enlace del dashboard puede generarlo (el enlace del dashboard es privado).
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

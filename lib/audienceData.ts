@@ -100,11 +100,46 @@ export const TARGETS: Array<{ name: string; oct: number; target: number; newTarg
 
 
 // Concentración estimada de la comunidad dentro de cada país (índice relativo 0-1, sin porcentajes).
-// Criterio del equipo: mayor peso en el sur, las islas y Galicia. Se combina con el reparto real por país de Metricool.
-export const REGION_INDEX: Record<string, number> = {
-  AN: 1, CN: 0.95, GA: 0.95, IB: 0.8, VC: 0.65, MC: 0.6, CT: 0.6, AS: 0.55, MD: 0.5, EX: 0.5, CB: 0.5, PV: 0.45,
-  CE: 0.4, ML: 0.35, CM: 0.35, CL: 0.35, AR: 0.3, NC: 0.3, RI: 0.2,
-  'PT-Porto': 0.8, 'PT-Lisboa': 0.8, 'PT-Faro': 0.7, 'PT-Setúbal': 0.6, 'PT-Braga': 0.6, 'PT-Aveiro': 0.5, 'PT-VianadoCastelo': 0.5,
-  'PT-Leiria': 0.5, 'PT-Coimbra': 0.45, 'PT-Santarém': 0.35, 'PT-Beja': 0.35, 'PT-Évora': 0.3, 'PT-Viseu': 0.3, 'PT-Portalegre': 0.25,
-  'PT-CasteloBranco': 0.25, 'PT-VilaReal': 0.25, 'PT-Guarda': 0.2, 'PT-Bragança': 0.2,
+// Se obtiene combinando tres factores por zona: población, litoral y tradición de pesca deportiva, con un peso distinto
+// para cada red según el perfil de su audiencia. Se combina después con el reparto real por país.
+type Zone = { pop: number; coast: number; trad: number };
+const ZONES: Record<string, Zone> = {
+  AN: { pop: 0.95, coast: 0.9, trad: 0.9 }, GA: { pop: 0.55, coast: 1, trad: 1 }, CN: { pop: 0.55, coast: 1, trad: 0.95 },
+  IB: { pop: 0.3, coast: 1, trad: 0.7 }, VC: { pop: 0.8, coast: 0.85, trad: 0.6 }, MC: { pop: 0.35, coast: 0.7, trad: 0.55 },
+  CT: { pop: 1, coast: 0.8, trad: 0.45 }, AS: { pop: 0.3, coast: 1, trad: 0.85 }, CB: { pop: 0.2, coast: 1, trad: 0.8 },
+  PV: { pop: 0.45, coast: 1, trad: 0.7 }, MD: { pop: 0.95, coast: 0, trad: 0.55 }, EX: { pop: 0.25, coast: 0, trad: 0.65 },
+  CM: { pop: 0.3, coast: 0, trad: 0.5 }, CL: { pop: 0.4, coast: 0, trad: 0.5 }, AR: { pop: 0.3, coast: 0, trad: 0.5 },
+  NC: { pop: 0.15, coast: 0, trad: 0.4 }, RI: { pop: 0.1, coast: 0, trad: 0.3 }, CE: { pop: 0.05, coast: 1, trad: 0.4 },
+  ML: { pop: 0.04, coast: 1, trad: 0.3 },
+  "PT-Lisboa": { pop: 1, coast: 0.9, trad: 0.75 }, "PT-Setúbal": { pop: 0.55, coast: 1, trad: 1 }, "PT-Porto": { pop: 0.9, coast: 0.9, trad: 0.75 },
+  "PT-Faro": { pop: 0.4, coast: 1, trad: 0.95 }, "PT-Madeira": { pop: 0.3, coast: 1, trad: 1 }, "PT-Braga": { pop: 0.6, coast: 0.3, trad: 0.5 },
+  "PT-Aveiro": { pop: 0.5, coast: 1, trad: 0.8 }, "PT-Leiria": { pop: 0.35, coast: 1, trad: 0.8 }, "PT-Coimbra": { pop: 0.35, coast: 0.8, trad: 0.6 },
+  "PT-VianadoCastelo": { pop: 0.25, coast: 1, trad: 0.7 }, "PT-Santarém": { pop: 0.25, coast: 0, trad: 0.55 }, "PT-Beja": { pop: 0.1, coast: 0.3, trad: 0.5 },
+  "PT-Évora": { pop: 0.1, coast: 0, trad: 0.4 }, "PT-Viseu": { pop: 0.2, coast: 0, trad: 0.4 }, "PT-Portalegre": { pop: 0.06, coast: 0, trad: 0.4 },
+  "PT-CasteloBranco": { pop: 0.1, coast: 0, trad: 0.45 }, "PT-VilaReal": { pop: 0.12, coast: 0, trad: 0.4 }, "PT-Guarda": { pop: 0.08, coast: 0, trad: 0.4 },
+  "PT-Bragança": { pop: 0.07, coast: 0, trad: 0.35 },
 };
+// Pesos por red: población, litoral, tradición. Facebook: público mayor y menos urbano, más peso a la tradición.
+const WEIGHTS: Record<string, [number, number, number]> = {
+  "ig-es": [0.4, 0.2, 0.4], "yt-es": [0.4, 0.2, 0.4], "ig-pt": [0.35, 0.3, 0.35], "fb-es": [0.2, 0.2, 0.6],
+};
+// Zonas españolas con más peso en la audiencia portuguesa por cercanía con Portugal
+const BORDER_BOOST: Record<string, number> = { GA: 1.35, EX: 1.25, AN: 1.15, CL: 1.1 };
+const RAW: Record<string, Record<string, number>> = {};
+for (const net of Object.keys(WEIGHTS)) {
+  const [wp, wc, wt] = WEIGHTS[net];
+  const row: Record<string, number> = {};
+  for (const [id, z] of Object.entries(ZONES)) {
+    let v = wp * z.pop + wc * z.coast + wt * z.trad;
+    if (net === "ig-pt" && BORDER_BOOST[id]) v *= BORDER_BOOST[id];
+    row[id] = v;
+  }
+  const max = Math.max(...Object.values(row));
+  for (const id of Object.keys(row)) row[id] = row[id] / max;
+  RAW[net] = row;
+}
+export function regionIndex(net: string, id: string): number {
+  return RAW[net]?.[id] ?? 0.3;
+}
+// Compatibilidad: índice de la red por defecto
+export const REGION_INDEX: Record<string, number> = RAW["ig-es"];
