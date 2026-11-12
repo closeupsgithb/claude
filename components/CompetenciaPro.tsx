@@ -18,6 +18,19 @@ const TARGET_PLAT: Record<string, "instagram" | "facebook" | "youtube"> = {
 };
 const PLAT_COLOR = { instagram: "var(--brand-instagram, #e1306c)", facebook: "var(--brand-facebook, #1877f2)", youtube: "var(--brand-youtube, #d92020)" };
 
+const AVATAR: Array<[RegExp, string, string]> = [
+  [/^Shimano/i, "SH", "#0098d8"], [/^Daiwa/i, "DW", "#2f6f8f"], [/^Fox Fishing/i, "FT", "#7a5c3a"], [/^Fox/i, "FX", "#7a5c3a"],
+  [/^Hart/i, "HF", "#3d7a4a"], [/^Bocarde/i, "BT", "#6b4a8f"],
+];
+function Avatar({ name, size = 26 }: { name: string; size?: number }) {
+  const m = AVATAR.find(([re]) => re.test(name));
+  const ini = m ? m[1] : name.slice(0, 2).toUpperCase();
+  const bg = m ? m[2] : "var(--series-other)";
+  return (
+    <span aria-hidden style={{ display: "inline-grid", placeItems: "center", width: size, height: size, borderRadius: "50%", background: bg, color: "#fff", fontSize: size * 0.4, fontWeight: 800, letterSpacing: ".02em", flex: "none" }}>{ini}</span>
+  );
+}
+
 const CSS = `
 .cp{display:flex;flex-direction:column;gap:20px}
 .cp-pills{display:flex;gap:10px;flex-wrap:wrap}
@@ -128,7 +141,7 @@ function Leaderboard({ series }: { series: Series[] }) {
     <div className="cp-board">
       {rows.map((r) => (
         <div key={r.name} className={r.hl ? "me" : ""}>
-          <span style={{ fontWeight: r.hl ? 800 : 500 }}>{r.name}</span>
+          <span style={{ fontWeight: r.hl ? 800 : 500, display: "inline-flex", alignItems: "center", gap: 9 }}><Avatar name={r.name} />{r.name}</span>
           <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{k(r.b as number)}</span>
             <span className={`cp-chip ${r.hl ? "up" : "flat"}`}>▲ {pct(r.g as number)}</span>
@@ -192,9 +205,12 @@ export default function CompetenciaPro() {
   });
   const iberiaRank = ranked.findIndex((o) => o.highlight) + 1;
 
-  const kpis = plat === "instagram"
-    ? [[`+${pct(iberia.gIg)}`, "Instagram frente a otras oficinas"], [`+${pct(gBrand)}`, "Instagram frente a las marcas del segmento"], [`${rankComm}ª`, "mayor comunidad de Europa"]]
-    : [[`+${pct(iberia.gYt as number)}`, "YouTube desde agosto"], [`+${pct(gBrand)}`, "YouTube frente a otros canales de pesca"], [`${k(iberia.yt11)}`, "suscriptores en noviembre"]];
+  const aheadN = series.slice(1).filter((s) => (s.values[3] as number) < (own[3] as number)).length;
+  const kpis = [
+    ["1.º", plat === "instagram" ? "puesto entre las marcas del segmento" : "puesto entre los canales de pesca"],
+    [`${aheadN} de ${series.length - 1}`, "competidores directos por detrás"],
+    [k(own[3] as number), plat === "instagram" ? "seguidores en octubre" : "suscriptores en octubre"],
+  ];
 
   return (
     <div className="cp" style={{ ["--c" as string]: b.color, ["--grad" as string]: b.grad }}>
@@ -239,7 +255,7 @@ export default function CompetenciaPro() {
                 const g1 = growth(s.values[2], s.values[3]);
                 return (
                   <tr key={s.name} className={s.highlight ? "me" : ""}>
-                    <td>{s.name}</td>
+                    <td><span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}><Avatar name={s.name} size={24} />{s.name}</span></td>
                     {s.values.map((v, i) => <td key={i} style={{ color: v === null ? "var(--text-muted)" : undefined }}>{v === null ? "—" : fmt(v)}</td>)}
                     <td>{s.values[2] !== null ? "+" + fmt(last - (s.values[2] as number)) : "—"}</td>
                     <td><span className={`cp-chip ${s.highlight ? "up" : "flat"}`}>{g1 !== null ? "+" + pct(g1) : "—"}</span></td>
@@ -258,7 +274,7 @@ export default function CompetenciaPro() {
         <div className="cp-h2h">
           {rivals.map((r) => (
             <div key={r.name} className="cp-vs">
-              <div className="vs"><b style={{ fontSize: 15 }}>{r.name}</b><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{k(r.last)}</span></div>
+              <div className="vs"><b style={{ fontSize: 15, display: "inline-flex", alignItems: "center", gap: 9 }}><Avatar name={r.name} size={28} />{r.name}</b><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{k(r.last)}</span></div>
               <div className="big" style={{ color: b.color }}>{r.gap >= 0 ? "+" : "−"}{k(Math.abs(r.gap))}</div>
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 8 }}>{r.gap >= 0 ? "de ventaja de Shimano en la última lectura" : "de ventaja del competidor"}</div>
               <div className="cp-bar2"><span>Shimano</span><span style={{ background: "var(--gridline)", borderRadius: 5 }}><i style={{ width: `${Math.min(r.gOwn / r.gMax * 100, 100)}%`, background: b.color }} /></span><b>+{pct(r.gOwn)}</b></div>
