@@ -48,6 +48,20 @@ const CSS = `
 .cp-board div.me{border-color:var(--c);background:color-mix(in srgb,var(--c) 9%,var(--surface-1))}
 .cp-stack{display:flex;height:22px;border-radius:11px;overflow:hidden;background:var(--gridline)}
 .cp-rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.cp-h{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-primary);margin:10px 0 -6px;display:flex;align-items:center;gap:10px}
+.cp-h:after{content:"";flex:1;height:1px;background:var(--border)}
+.cp-tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.cp-tbl th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);text-align:right;padding:0 10px 8px 0;border-bottom:1.5px solid var(--text-primary);white-space:nowrap}
+.cp-tbl th:first-child,.cp-tbl td:first-child{text-align:left}
+.cp-tbl td{padding:10px 10px 10px 0;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+.cp-tbl td:first-child{font-weight:700}
+.cp-tbl tr.me td{background:color-mix(in srgb,var(--c) 8%,transparent)}
+.cp-h2h{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.cp-vs{border:1px solid var(--border);border-radius:16px;padding:16px 18px;background:var(--surface-1)}
+.cp-vs .vs{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cp-vs .big{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.cp-bar2{display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:12px;margin-top:6px}
+.cp-bar2 i{display:block;height:9px;border-radius:5px}
 .cp-ring{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;border:1px solid var(--border);border-radius:16px;padding:16px 10px;background:var(--surface-1)}
 @media (max-width:760px){.cp-rank{grid-template-columns:30px 70px 1fr}.cp-rank .cp-val{grid-column:2/-1}.cp-hero{padding:20px}.cp-split{grid-template-columns:1fr}}
 `;
@@ -164,6 +178,18 @@ export default function CompetenciaPro() {
   const own = series[0].values;
   const gBrand = growth(own[2], own[3]) as number;
   const maxC = Math.max(...offices.map((o) => o.c11));
+  const sortedBrands = [...series].sort((x, y) => (growth(y.values[2], y.values[3]) ?? -1) - (growth(x.values[2], x.values[3]) ?? -1));
+  const shim = series[0].values;
+  const gOwnAO = growth(shim[2], shim[3]) as number;
+  const rivals = series.slice(1).map((s) => {
+    const last = s.values[3] as number;
+    const gRival = growth(s.values[2], s.values[3]) ?? 0.1;
+    let ahead = "Por delante en todas las lecturas";
+    for (let i = 0; i < 4; i++) {
+      if (shim[i] !== null && s.values[i] !== null && (shim[i] as number) > (s.values[i] as number)) { if (i > 0 && shim[i - 1] !== null && s.values[i - 1] !== null && (shim[i - 1] as number) < (s.values[i - 1] as number)) ahead = "Por delante desde " + ["marzo", "mayo", "agosto", "octubre"][i]; break; }
+    }
+    return { name: s.name, short: s.name.split(" ")[0], last, gap: (shim[3] as number) - last, gOwn: gOwnAO, gRival, gMax: Math.max(gOwnAO, gRival), ratio: gOwnAO / gRival, ahead };
+  });
   const iberiaRank = ranked.findIndex((o) => o.highlight) + 1;
 
   const kpis = plat === "instagram"
@@ -183,12 +209,71 @@ export default function CompetenciaPro() {
       <section className="cp-hero">
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", opacity: 0.85 }}>Competencia · {b.label}</div>
         <h2>Dónde estamos frente al mercado y hacia dónde conviene empujar</h2>
-        <p>Marcas del segmento, otras oficinas de Shimano y objetivos del año.</p>
+        <p>Competidores directos, otras oficinas de Shimano y objetivos del año.</p>
         <div className="cp-kpis">
           {kpis.map(([v, l]) => <div key={l} className="cp-kpi"><b>{v}</b><span>{l}</span></div>)}
         </div>
       </section>
 
+
+      <div className="cp-h">Competidores directos · {b.label}</div>
+
+      <section className="cp-card">
+        <div className="cp-eye">{b.label} · marcas del segmento · marzo a octubre 2026</div>
+        <div className="cp-split" style={{ marginTop: 12 }}>
+          <Trend series={series} color={b.color} />
+          <Leaderboard series={series} />
+        </div>
+      </section>
+
+      <section className="cp-card">
+        <div className="cp-eye">Detalle por marca · {plat === "instagram" ? "seguidores" : "suscriptores"}</div>
+        <p className="cp-sub">Lecturas del equipo de Marketing en cada fecha. Los huecos indican que esa marca aún no se medía.</p>
+        <div style={{ overflowX: "auto" }}>
+          <table className="cp-tbl">
+            <thead><tr><th>Marca</th>{COMP_PERIODS.map((p) => <th key={p}>{p.replace(" 2026", "")}</th>)}<th>Altas ago.–oct.</th><th>Crec. ago.–oct.</th><th>Desde 1.ª lectura</th></tr></thead>
+            <tbody>
+              {sortedBrands.map((s) => {
+                const first = s.values.find((v) => v !== null) as number;
+                const last = s.values[3] as number;
+                const g1 = growth(s.values[2], s.values[3]);
+                return (
+                  <tr key={s.name} className={s.highlight ? "me" : ""}>
+                    <td>{s.name}</td>
+                    {s.values.map((v, i) => <td key={i} style={{ color: v === null ? "var(--text-muted)" : undefined }}>{v === null ? "—" : fmt(v)}</td>)}
+                    <td>{s.values[2] !== null ? "+" + fmt(last - (s.values[2] as number)) : "—"}</td>
+                    <td><span className={`cp-chip ${s.highlight ? "up" : "flat"}`}>{g1 !== null ? "+" + pct(g1) : "—"}</span></td>
+                    <td>{"+" + pct(growth(first, last) as number)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="cp-card">
+        <div className="cp-eye">Cara a cara con Shimano</div>
+        <p className="cp-sub">Distancia, ritmo y momento en que Shimano se pone por delante de cada competidor directo.</p>
+        <div className="cp-h2h">
+          {rivals.map((r) => (
+            <div key={r.name} className="cp-vs">
+              <div className="vs"><b style={{ fontSize: 15 }}>{r.name}</b><span style={{ fontSize: 12, color: "var(--text-muted)" }}>{k(r.last)}</span></div>
+              <div className="big" style={{ color: b.color }}>{r.gap >= 0 ? "+" : "−"}{k(Math.abs(r.gap))}</div>
+              <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 8 }}>{r.gap >= 0 ? "de ventaja de Shimano en la última lectura" : "de ventaja del competidor"}</div>
+              <div className="cp-bar2"><span>Shimano</span><span style={{ background: "var(--gridline)", borderRadius: 5 }}><i style={{ width: `${Math.min(r.gOwn / r.gMax * 100, 100)}%`, background: b.color }} /></span><b>+{pct(r.gOwn)}</b></div>
+              <div className="cp-bar2"><span>{r.short}</span><span style={{ background: "var(--gridline)", borderRadius: 5 }}><i style={{ width: `${Math.max(r.gRival / r.gMax * 100, 2)}%`, background: "var(--series-other)" }} /></span><b>+{pct(r.gRival)}</b></div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                <span className="cp-chip up">{r.ratio.toFixed(1).replace(".", ",")}× el ritmo</span>
+                <span className="cp-chip flat">{r.ahead}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "12px 0 0" }}>Ritmo = crecimiento de Shimano entre agosto y octubre dividido entre el del competidor en el mismo periodo.</p>
+      </section>
+
+      <div className="cp-h">Otras oficinas de Shimano</div>
       <section className="cp-card">
         <div className="cp-eye">{b.label} · crecimiento por oficina · agosto a noviembre 2026</div>
         <p className="cp-sub">{plat === "instagram" ? "Seguidores nuevos y variación sobre agosto." : "Suscriptores nuevos y variación sobre agosto."}</p>
@@ -203,14 +288,6 @@ export default function CompetenciaPro() {
           </div>
         ))}
         <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "10px 0 0" }}>Iberia ocupa el puesto {iberiaRank} de {ranked.length} en {b.label}.</p>
-      </section>
-
-      <section className="cp-card">
-        <div className="cp-eye">{b.label} · marcas del segmento · marzo a octubre 2026</div>
-        <div className="cp-split" style={{ marginTop: 12 }}>
-          <Trend series={series} color={b.color} />
-          <Leaderboard series={series} />
-        </div>
       </section>
 
       <section className="cp-card">
