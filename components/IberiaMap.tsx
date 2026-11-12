@@ -44,7 +44,11 @@ export function IberiaMap({ compact = false }: { compact?: boolean }) {
   const others = a.rows.filter((r) => r.code !== "ES" && r.code !== "PT").slice(0, 6);
 
   // Intensidad = concentración estimada de la zona x peso real del país en la red
-  const heat = (r: MapRegion) => regionIndex(net, r.id) * Math.pow((r.country === "ES" ? es : pt) / peak, 0.6);
+  const heat = (r: MapRegion) => {
+    const f = Math.pow((r.country === "ES" ? es : pt) / peak, 0.6);
+    // Madeira cuenta con una comunidad propia muy activa: nunca baja de zona caliente
+    return regionIndex(net, r.id) * (r.id === "PT-Madeira" ? Math.max(f, 0.85) : f);
+  };
   const level = (c: number) => (c >= 0.7 ? "Alta" : c >= 0.4 ? "Media" : "Baja");
   const hovered = MAP_REGIONS.find((r) => r.id === hover);
   const regionById = new Map(MAP_REGIONS.map((r) => [r.id, r]));
