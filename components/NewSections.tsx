@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { IberiaMap } from "@/components/IberiaMap";
 import {
   AGE_BUCKETS, AUDIENCE, AUDIENCE_AS_OF, COMP_IG, COMP_PERIODS, COMP_YT, COUNTRY_NAMES, IG_ES_AGE_GENDER,
   SALES_OFFICES, TARGETS, type Series,
@@ -147,6 +148,7 @@ function IberiaSplit() {
 export function AnaliticaView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <IberiaMap />
       <Label>Audiencia por país y red</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
         <CountryBars id="ig-es" />
@@ -334,13 +336,13 @@ export function CompetenciaView() {
 
 /* ---------------------------- ESCUCHA SOCIAL ---------------------------- */
 
-const LISTENING: Array<{ title: string; text: string; state: string }> = [
-  { title: "Técnicas en crecimiento", text: "Menciones de surfcasting, carpfishing, jigging, spinning, egging o lubina, con la variación mensual de cada una.", state: "Con datos propios activos" },
-  { title: "Especies más mencionadas", text: "Qué especies concentran la conversación cada mes y en qué zona de la península y las islas.", state: "Con datos propios activos" },
-  { title: "Tendencias regionales", text: "Zonas donde sube una técnica o especie (Canarias, Madeira, Azores), para decidir qué vídeo grabar y dónde activar campaña.", state: "Diseño listo" },
-  { title: "Competencia en abierto", text: "Qué publican Daiwa, Fox, Hart y los canales de referencia: formatos, frecuencia y piezas con más respuesta.", state: "Diseño listo" },
-  { title: "Contenido generado por la comunidad", text: "Publicaciones que etiquetan a Shimano, clasificadas por especie, país y producto.", state: "Diseño listo" },
-  { title: "Clasificación de comentarios", text: "Preguntas técnicas, de producto, de precio y de soporte para detectar dudas recurrentes y temas de próximos vídeos.", state: "Diseño listo" },
+const LISTENING: Array<{ title: string; text: string; state: string; icon: string }> = [
+  { title: "Técnicas en crecimiento", icon: "M3 17l6-6 4 4 8-8M14 7h7v7", text: "Menciones de surfcasting, carpfishing, jigging, spinning, egging o lubina, con la variación mensual de cada una.", state: "Con datos propios activos" },
+  { title: "Especies más mencionadas", icon: "M2 12c3-5 7-7 12-7 3 0 6 2 8 7-2 5-5 7-8 7-5 0-9-2-12-7zM17 12h.01", text: "Qué especies concentran la conversación cada mes y en qué zona de la península y las islas.", state: "Con datos propios activos" },
+  { title: "Tendencias regionales", icon: "M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11zM12 12a2 2 0 100-4 2 2 0 000 4z", text: "Zonas donde sube una técnica o especie (Canarias, Madeira, Azores), para decidir qué vídeo grabar y dónde activar campaña.", state: "Diseño listo" },
+  { title: "Competencia en abierto", icon: "M12 3l9 4.5v5c0 4.5-3.5 7.5-9 9.5-5.5-2-9-5-9-9.5v-5L12 3z", text: "Qué publican Daiwa, Fox, Hart y los canales de referencia: formatos, frecuencia y piezas con más respuesta.", state: "Diseño listo" },
+  { title: "Contenido generado por la comunidad", icon: "M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M10 11a4 4 0 100-8 4 4 0 000 8zM21 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8", text: "Publicaciones que etiquetan a Shimano, clasificadas por especie, país y producto.", state: "Diseño listo" },
+  { title: "Clasificación de comentarios", icon: "M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z", text: "Preguntas técnicas, de producto, de precio y de soporte para detectar dudas recurrentes y temas de próximos vídeos.", state: "Diseño listo" },
 ];
 
 export function EscuchaView({ ownAnalysis }: { ownAnalysis: ReactNode }) {
@@ -351,10 +353,18 @@ export function EscuchaView({ ownAnalysis }: { ownAnalysis: ReactNode }) {
       <Block title="Qué vigila este módulo" sub="Para decidir qué grabar antes que la competencia y dónde activar campaña.">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
           {LISTENING.map((l) => (
-            <div key={l.title} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px" }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{l.title}</div>
-              <p style={{ margin: "4px 0 8px", fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45 }}>{l.text}</p>
-              <span style={{ fontSize: 11, fontWeight: 700, color: l.state.startsWith("Con") ? "var(--success)" : "var(--text-muted)" }}>
+            <div key={l.title} style={{ border: "1px solid var(--border)", borderRadius: 14, padding: "16px 16px 14px", background: "var(--surface-1)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span aria-hidden style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: l.state.startsWith("Con") ? "color-mix(in srgb, var(--series-es) 14%, transparent)" : "var(--gridline)", color: l.state.startsWith("Con") ? "var(--series-es)" : "var(--text-secondary)" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={l.icon} />
+                  </svg>
+                </span>
+                <div style={{ fontWeight: 700, fontSize: 14.5 }}>{l.title}</div>
+              </div>
+              <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5, flex: 1 }}>{l.text}</p>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: l.state.startsWith("Con") ? "var(--success)" : "var(--text-muted)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: 4, background: l.state.startsWith("Con") ? "var(--success)" : "var(--series-other)" }} />
                 {l.state}
               </span>
             </div>

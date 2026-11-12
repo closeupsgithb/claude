@@ -97,3 +97,7 @@ export const TARGETS: Array<{ name: string; oct: number; target: number; newTarg
   { name: "Instagram Portugal", oct: 7400, target: 4000, newTarget: 6000 },
   { name: "Facebook Portugal", oct: 3600, target: 500, newTarget: 1500 },
 ];
+
+// Reparto por comunidad autónoma (id de lib/mapPaths) y distrito de Portugal, en % de seguidores.
+// Vacío a propósito: Metricool solo entrega país. Se rellena cuando haya una fuente real (ciudades de Instagram).
+export const REGION_SHARES: Record<string, Record<string, number> | undefined> = {};
